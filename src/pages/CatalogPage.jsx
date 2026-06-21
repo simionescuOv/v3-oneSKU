@@ -5,9 +5,11 @@ import {
 } from 'lucide-react'
 import { useCatalogStore } from '../store/useCatalogStore'
 import { useAppStore } from '../store/useAppStore'
-import { filterAndSort } from '../lib/search'
+import { usePicker } from '../hooks/usePicker'
 import NodeCard from '../components/catalog/NodeCard'
 import BottomSheet from '../components/catalog/BottomSheet'
+
+const nodeLabel = (node) => node.name
 
 function buildSearchTree(matches, getAncestorFolders) {
   const root = { node: null, children: [], categories: [], matched: false }
@@ -179,14 +181,19 @@ export default function CatalogPage() {
 
   // ── Search (= unicul mecanism de adăugare categorie) ─────────────────────────
   // Caută atât în categorii, cât și în foldere (ex: „i” → folderul „Îmbrăcăminte”)
+  // Modul inline al usePicker: BottomBar deține input-ul, hook-ul filtrează lista.
   const searchableNodes = useMemo(
     () => nodes.filter((n) => n.type === 'category' || n.type === 'folder'),
     [nodes]
   )
-  const searchMatches = useMemo(
-    () => (isSearching ? filterAndSort(searchableNodes, searchQuery, (n) => n.name) : []),
-    [isSearching, searchableNodes, searchQuery]
-  )
+  const { filteredItems: searchMatches, showCreate } = usePicker({
+    mode: 'inline',
+    items: isSearching ? searchableNodes : [],
+    labelFn: nodeLabel,
+    query: searchQuery,
+    multiSelect: false,
+    allowCreate: true,
+  })
   const searchTree = useMemo(
     () => (isSearching ? buildSearchTree(searchMatches, getAncestorFolders) : null),
     [isSearching, searchMatches, getAncestorFolders]
@@ -255,7 +262,7 @@ export default function CatalogPage() {
       ) : isSearching ? (
         <div className="flex-1 overflow-y-auto divide-y divide-zinc-800">
           <SearchGroup group={searchTree} depth={0} onTap={handleTap} />
-          {searchMatches.length === 0 && (
+          {showCreate && (
             <button
               onClick={handleCreateFromSearch}
               className="w-full flex items-center gap-3 px-4 py-3.5 text-left text-blue-400 active:bg-zinc-900"
@@ -281,7 +288,7 @@ export default function CatalogPage() {
       )}
 
       {/* FAB „+" — vizibil doar când căutarea nu are rezultate */}
-      {isSearching && searchMatches.length === 0 && (
+      {showCreate && (
         <button
           onClick={handleCreateFromSearch}
           className="absolute right-4 z-20 flex items-center justify-center w-14 h-14 rounded-full bg-blue-600 text-white shadow-xl active:bg-blue-700"

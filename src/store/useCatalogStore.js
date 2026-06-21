@@ -146,20 +146,30 @@ export const useCatalogStore = create((set, get) => ({
   },
 
   // ── Group (only at root, creates/uses folder) ────────────────────────
+  // SPEC_CatalogPage_v2 §6.1: disponibilă doar la rădăcină, minim 2 elemente.
+  // Returnează false dacă pre-condițiile nu sunt îndeplinite.
   groupNodes: (ids, folderName) => {
+    const { nodes } = get()
+    if (!Array.isArray(ids) || ids.length < 2) return false
+    const allAtRoot = ids.every((id) => {
+      const node = nodes.find((n) => n.id === id)
+      return node && node.parentId === null
+    })
+    if (!allAtRoot) return false
     set((s) => {
       let folder = s.nodes.find(
         (n) => n.type === 'folder' && n.name.toLowerCase() === folderName.toLowerCase() && n.parentId === null
       )
-      let nodes = s.nodes
+      let next = s.nodes
       if (!folder) {
         folder = { id: genId('f'), type: 'folder', name: folderName.trim(), parentId: null }
-        nodes = [...nodes, folder]
+        next = [...next, folder]
       }
       return {
-        nodes: nodes.map((n) => ids.includes(n.id) ? { ...n, parentId: folder.id } : n),
+        nodes: next.map((n) => ids.includes(n.id) ? { ...n, parentId: folder.id } : n),
       }
     })
+    return true
   },
 
   // ── Move ─────────────────────────────────────────────────────────────
@@ -177,14 +187,13 @@ export const useCatalogStore = create((set, get) => ({
     return true
   },
 
-  // Returns folder ids that are valid move destinations (excludes movedIds and their descendants)
-  getValidMoveDestinations: (movedIds) => {
+  // Folderele valide ca destinație de mutare pentru un nod (exclude nodul însuși
+  // și descendenții lui). Semnătură aliniată la SPEC_CatalogRPC §1.1
+  // (`get_valid_move_targets(p_node_id)`) — un singur nod.
+  getValidMoveDestinations: (nodeId) => {
     const { nodes } = get()
-    const excluded = new Set(movedIds)
-    for (const id of movedIds) {
-      const desc = getDescendantIds(nodes, id)
-      for (const d of desc) excluded.add(d)
-    }
+    const excluded = getDescendantIds(nodes, nodeId)
+    excluded.add(nodeId)
     return nodes.filter((n) => n.type === 'folder' && !excluded.has(n.id))
   },
 }))
