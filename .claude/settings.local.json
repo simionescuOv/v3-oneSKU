@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm uninstall *)",
+      "PowerShell(New-Item -ItemType Directory -Force \"C:\\\\Users\\\\ovdu2\\\\_ChiarJE\\\\developare\\\\_claude_code\\\\v3-oneSku\\\\docs\\\\specs\")",
+      "PowerShell(Move-Item \"C:\\\\Users\\\\ovdu2\\\\_ChiarJE\\\\developare\\\\_claude_code\\\\v3-oneSku\\\\ONESKU_ARCHITECTURE.md\" \"C:\\\\Users\\\\ovdu2\\\\_ChiarJE\\\\developare\\\\_claude_code\\\\v3-oneSku\\\\docs\\\\ARCHITECTURE.md\")",
+      "PowerShell(Move-Item \"C:\\\\Users\\\\ovdu2\\\\_ChiarJE\\\\developare\\\\_claude_code\\\\v3-oneSku\\\\STATUS.md\" \"C:\\\\Users\\\\ovdu2\\\\_ChiarJE\\\\developare\\\\_claude_code\\\\v3-oneSku\\\\docs\\\\STATUS.md\")",
+      "Bash(npx vite *)"
+    ]
+  }
+}
