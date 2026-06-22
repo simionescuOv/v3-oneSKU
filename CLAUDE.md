@@ -1,0 +1,1 @@
+- La fiecare push, generează un cuvânt aleator și afișează-l în homepage sub titlul OneSKU, format: `build: <cuvânt>`). Comunică cuvântul în răspuns ca eu să pot verifica că am accesat versiunea corectă pe Vercel.
