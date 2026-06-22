@@ -1,6 +1,6 @@
 const DIACRITICS_RE = new RegExp('[̀-ͯ]', 'g')
 
-function normalize(str) {
+export function normalize(str) {
   return str.toLowerCase().normalize('NFD').replace(DIACRITICS_RE, '')
 }
 

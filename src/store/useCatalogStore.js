@@ -1,5 +1,13 @@
 import { create } from 'zustand'
 import { mockNodes } from '../mock/products'
+import { normalize } from '../lib/search'
+
+// Numele oricărui nod (folder SAU categorie) e unic în tot catalogul tenantului,
+// indiferent de parentId și type (unicitate globală — vezi IMPL_GrupareMutare).
+function nameExistsGlobally(nodes, name, exceptId = null) {
+  const target = normalize(name.trim())
+  return nodes.some((n) => n.id !== exceptId && normalize(n.name) === target)
+}
 
 let _nextId = 100
 const genId = (prefix) => `${prefix}-${++_nextId}`
@@ -24,6 +32,23 @@ export const useCatalogStore = create((set, get) => ({
   currentFolderId: null,
   treeExpanded: false,
   toggleTreeExpanded: () => set((s) => ({ treeExpanded: !s.treeExpanded })),
+
+  // ── Selection mode (Grupare / Mutare) ───────────────────────────────
+  selectionMode: null,          // null | 'group' | 'move'
+  selectedNodeIds: new Set(),   // Set<id>
+
+  enterSelectionMode: (mode) =>
+    set({ selectionMode: mode, selectedNodeIds: new Set(), treeExpanded: false }),
+
+  toggleNodeSelection: (id) =>
+    set((s) => {
+      const next = new Set(s.selectedNodeIds)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return { selectedNodeIds: next }
+    }),
+
+  clearSelection: () => set({ selectionMode: null, selectedNodeIds: new Set() }),
 
   // ── Navigation ──────────────────────────────────────────────────────
   navigate: (folderId) => set({ currentFolderId: folderId }),
@@ -79,10 +104,7 @@ export const useCatalogStore = create((set, get) => ({
   // ── CRUD ─────────────────────────────────────────────────────────────
   addCategory: (name, parentId = null) => {
     const { nodes } = get()
-    const exists = nodes.some(
-      (n) => n.type === 'category' && n.name.toLowerCase() === name.toLowerCase() && n.parentId === parentId
-    )
-    if (exists) return false
+    if (nameExistsGlobally(nodes, name)) return false
     const newNode = { id: genId('c'), type: 'category', name: name.trim(), parentId, products: 0 }
     set({ nodes: [...nodes, newNode] })
     return true
@@ -90,10 +112,7 @@ export const useCatalogStore = create((set, get) => ({
 
   addFolder: (name, parentId = null) => {
     const { nodes } = get()
-    const exists = nodes.some(
-      (n) => n.type === 'folder' && n.name.toLowerCase() === name.toLowerCase() && n.parentId === parentId
-    )
-    if (exists) return false
+    if (nameExistsGlobally(nodes, name)) return false
     const newNode = { id: genId('f'), type: 'folder', name: name.trim(), parentId }
     set({ nodes: [...nodes, newNode] })
     return true
@@ -145,21 +164,18 @@ export const useCatalogStore = create((set, get) => ({
     set((s) => ({ trash: s.trash.filter((n) => n.id !== id) }))
   },
 
-  // ── Group (only at root, creates/uses folder) ────────────────────────
+  // ── Group (only at root, creates a new folder) ───────────────────────
+  // Numele folderului nou trebuie să fie unic global. Întoarce false dacă există deja.
   groupNodes: (ids, folderName) => {
-    set((s) => {
-      let folder = s.nodes.find(
-        (n) => n.type === 'folder' && n.name.toLowerCase() === folderName.toLowerCase() && n.parentId === null
-      )
-      let nodes = s.nodes
-      if (!folder) {
-        folder = { id: genId('f'), type: 'folder', name: folderName.trim(), parentId: null }
-        nodes = [...nodes, folder]
-      }
-      return {
-        nodes: nodes.map((n) => ids.includes(n.id) ? { ...n, parentId: folder.id } : n),
-      }
+    const { nodes } = get()
+    if (nameExistsGlobally(nodes, folderName)) return false
+    const folder = { id: genId('f'), type: 'folder', name: folderName.trim(), parentId: null }
+    set({
+      nodes: [...nodes, folder].map((n) =>
+        ids.includes(n.id) ? { ...n, parentId: folder.id } : n
+      ),
     })
+    return true
   },
 
   // ── Move ─────────────────────────────────────────────────────────────

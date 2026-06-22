@@ -103,9 +103,9 @@ Starea trăiește în store-ul Zustand (consum prin store, ca toate datele — v
 ### 4.1 Mecanism
 - Prima categorie: din butonul CTA al empty state.
 - Următoarele: din **bara de căutare** (BottomBar) sau din butonul `+` de lângă ea, ambele deschid picker-ul „select or create".
-- Picker-ul: cauți printre categoriile existente (vezi §6 căutare). Dacă numele NU există → apare rândul „+ Adaugă «query»". Confirmarea creează categoria în nivelul curent (parentId = folderul curent, sau null la rădăcină).
+- Picker-ul: cauți printre categoriile existente (vezi §6 căutare). Dacă numele NU există (match inexact, normalizat) → apare rândul „+ Adaugă «query»", chiar dacă există rezultate similare prin substring. Confirmarea creează categoria în nivelul curent (parentId = folderul curent, sau null la rădăcină).
 - Single select: la alegere/creare, picker-ul se închide imediat și trimite rezultatul.
-- Anti-duplicare: nu permite două categorii cu același nume (case-insensitive).
+- Anti-duplicare: **unicitate globală de nume** — numele oricărui nod (folder SAU categorie) e unic în tot catalogul, indiferent de `parentId` și `type` (normalizat: NFD + lowercase + strip diacritice, vezi `src/lib/search.js`). Gardă hard re-verificată chiar înainte de creare.
 
 ---
 
@@ -116,19 +116,19 @@ Starea trăiește în store-ul Zustand (consum prin store, ca toate datele — v
 - Disponibilă **DOAR la rădăcină**, și DOAR pentru elementele care nu sunt deja într-un folder (elemente de la rădăcină). Dacă nu ești la rădăcină, opțiunea e dezactivată cu hint.
 - Flux:
   1. Intri în **mod selecție**: cardurile de la rădăcină capătă un indicator de selecție (checkbox). Tap pe card = selectează/deselectează (nu mai navighează).
-  2. BottomBar devine action-bar: „N selectate" + buton „Grupează" (activ doar la ≥2 selectate).
-  3. „Grupează" → deschide picker de denumire (select-or-create pe folderele existente de la rădăcină): scrii un nume nou de folder SAU alegi unul existent. Căutarea se face din bara de jos (vezi §3.2).
-  4. La confirmare: elementele selectate primesc parentId = id-ul folderului (nou creat sau existent). Ies din mod selecție.
+  2. Apare un **action-bar** deasupra BottomBar-ului: „✕ Anulează" + „N selectate" + buton „▸" (activ doar la ≥2 selectate).
+  3. „▸" → deschide `GroupNameSheet` (sheet fără căutare, BottomBar se ascunde): scrii numele folderului nou. Numele trebuie să fie unic global; duplicat → toast de eroare, câmpul rămâne activ.
+  4. La confirmare: se creează folderul nou la rădăcină, iar elementele selectate primesc parentId = id-ul lui. Ieșirea din mod selecție e explicită (NU automată).
 
 ### 5.2 Mutare (reorganizează ierarhia existentă)
 - Acțiune din meniul contextual: „Mutare". Disponibilă pe orice nivel.
 - Se pot muta **atât categorii cât și foldere întregi**.
 - Flux:
-  1. Mod selecție (ca la grupare, dar pe orice nivel). SAU se poate iniția cu un singur element preselectat din meniul per-card (vezi §7).
-  2. Action-bar: „N selectate" + „Alege destinația".
-  3. Deschide picker de destinație: listă de foldere valide + opțiunea **„Rădăcină"** (scoate din orice folder). Căutare din bara de jos.
-  4. **Anti-ciclu (CRITIC):** picker-ul de destinație TREBUIE să excludă elementul mutat ȘI tot subarborele lui (nu poți muta un folder în el însuși sau într-un descendent al lui).
-  5. La confirmare: elementele primesc noul parentId.
+  1. Mod selecție (ca la grupare, dar pe orice nivel, cu ≥1 element).
+  2. Action-bar: „✕ Anulează" + „N selectate" + „▸".
+  3. „▸" → deschide `MoveDestinationSheet` (sheet **cu căutare**, BottomBar rămâne vizibil): listă de foldere valide + opțiunea **„⌂ Rădăcină"** (mereu prima, scoate din orice folder). Folderul curent e marcat „(curent)". Căutare din bara de jos.
+  4. **Anti-ciclu (CRITIC):** lista de destinații exclude elementele mutate ȘI tot subarborele lor (`getValidMoveDestinations`).
+  5. La tap pe destinație: elementele primesc noul parentId. Ieșirea din mod selecție e explicită (NU automată).
 
 ### 5.3 Folder gol
 - Când un folder rămâne fără conținut (după mutare/ștergere), afișează un mesaj prin care utilizatorul alege: **păstrează** folderul gol SAU **șterge-l**.
@@ -203,9 +203,9 @@ Conține acțiunile la nivel de Catalog:
 
 | Operație | De unde | Restricții |
 |---|---|---|
-| Adaugă categorie | bara de căutare / `+` / CTA empty state | anti-duplicare nume |
-| Grupare | meniu contextual | doar la rădăcină, ≥2 elemente negrupate |
-| Mutare | meniu contextual / meniu per-card | categorii + foldere; anti-ciclu (exclude self+descendenți); destinație = folder sau rădăcină |
+| Adaugă categorie | bara de căutare / `+` / CTA empty state | unicitate globală de nume |
+| Grupare | meniu contextual (Config) | doar la rădăcină, ≥2 elemente; creează folder nou (nume unic global) |
+| Mutare | meniu contextual (Config) | categorii + foldere; anti-ciclu (exclude self+descendenți); destinație = folder sau rădăcină |
 | Editare nume | long-press card | foldere + categorii |
 | Ștergere categorie | long-press card | → Coș; restaurare la rădăcină; undo în toast |
 | Ștergere folder | long-press card | directă; conținut promovat la părinte; confirmare dacă nu e gol |

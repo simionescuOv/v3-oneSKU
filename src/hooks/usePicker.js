@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo } from 'react'
-import { scoreMatch } from '../lib/search'
+import { scoreMatch, normalize } from '../lib/search'
 
 export function usePicker({
   options = [],
@@ -111,8 +111,10 @@ export function usePicker({
     return scored.map((s) => s.opt)
   }, [localOptions, query, multiSelect, tempSelected])
 
+  // „+ Adaugă" apare pe match inexact (normalizat), nu pe zero rezultate —
+  // chiar dacă există rezultate similare prin substring (vezi IMPL_GrupareMutare A2).
   const exactExists = localOptions.some(
-    (o) => o.toLowerCase() === query.trim().toLowerCase()
+    (o) => normalize(o) === normalize(query.trim())
   )
   const showAddRow = allowCreate && query.trim().length > 0 && !exactExists
 

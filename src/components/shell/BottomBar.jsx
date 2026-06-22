@@ -9,6 +9,7 @@ export default function BottomBar({ hidden }) {
   const setSearchQuery = useAppStore((s) => s.setSearchQuery)
   const searchPlaceholder = useAppStore((s) => s.searchPlaceholder)
   const openCatalogMenu = useAppStore((s) => s.openCatalogMenu)
+  const bottomBarHidden = useAppStore((s) => s.bottomBarHidden)
 
   const { pathname } = useLocation()
   const isCatalog = pathname === '/catalog'
@@ -25,7 +26,7 @@ export default function BottomBar({ hidden }) {
         'flex-none flex items-center gap-3 px-4 h-16',
         'bg-zinc-900 border-t border-zinc-800',
         'transition-transform duration-300 ease-in-out',
-        hidden ? 'translate-y-full' : 'translate-y-0',
+        hidden || bottomBarHidden ? 'translate-y-full' : 'translate-y-0',
       ].join(' ')}
     >
       <div className="flex-1 flex items-center gap-2 bg-zinc-800 rounded-xl px-3 h-10">

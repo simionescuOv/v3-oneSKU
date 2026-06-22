@@ -5,9 +5,12 @@ import {
 } from 'lucide-react'
 import { useCatalogStore } from '../store/useCatalogStore'
 import { useAppStore } from '../store/useAppStore'
-import { filterAndSort } from '../lib/search'
+import { filterAndSort, normalize } from '../lib/search'
 import NodeCard from '../components/catalog/NodeCard'
 import BottomSheet from '../components/catalog/BottomSheet'
+import ActionBar from '../components/catalog/ActionBar'
+import GroupNameSheet from '../components/catalog/GroupNameSheet'
+import MoveDestinationSheet from '../components/catalog/MoveDestinationSheet'
 
 function buildSearchTree(matches, getAncestorFolders) {
   const root = { node: null, children: [], categories: [], matched: false }
@@ -36,6 +39,14 @@ function buildSearchTree(matches, getAncestorFolders) {
     }
   }
   return root
+}
+
+// A3 — Scoring-ul ordonează categoriile în interiorul unui grup-folder, dar NU
+// rearanjează grupurile-folder între ele: ordinea folderelor rămâne cea naturală
+// (după poziția în arbore), independent de scorul rezultatelor din ele.
+function sortTreeFolders(group, orderOf) {
+  group.children.sort((a, b) => orderOf(a.node.id) - orderOf(b.node.id))
+  group.children.forEach((child) => sortTreeFolders(child, orderOf))
 }
 
 function SearchGroup({ group, depth, onTap }) {
@@ -118,6 +129,12 @@ export default function CatalogPage() {
   const treeExpanded = useCatalogStore((s) => s.treeExpanded)
   const toggleTreeExpanded = useCatalogStore((s) => s.toggleTreeExpanded)
 
+  const selectionMode = useCatalogStore((s) => s.selectionMode)
+  const selectedNodeIds = useCatalogStore((s) => s.selectedNodeIds)
+  const enterSelectionMode = useCatalogStore((s) => s.enterSelectionMode)
+  const toggleNodeSelection = useCatalogStore((s) => s.toggleNodeSelection)
+  const clearSelection = useCatalogStore((s) => s.clearSelection)
+
   const searchQuery = useAppStore((s) => s.searchQuery)
   const setSearchPlaceholder = useAppStore((s) => s.setSearchPlaceholder)
   const clearSearch = useAppStore((s) => s.clearSearch)
@@ -126,8 +143,12 @@ export default function CatalogPage() {
 
   const [toast, setToast] = useState(null)
   const [configOpen, setConfigOpen] = useState(false)
+  const [groupSheetOpen, setGroupSheetOpen] = useState(false)
+  const [moveSheetOpen, setMoveSheetOpen] = useState(false)
   const toastTimer = useRef(null)
   const isPopRef = useRef(false)
+  const selectionModeRef = useRef(selectionMode)
+  selectionModeRef.current = selectionMode
 
   const currentChildren = getChildren(currentFolderId)
   const isRoot = currentFolderId === null
@@ -138,15 +159,19 @@ export default function CatalogPage() {
     setSearchPlaceholder('Caută categorie sau folder...')
   }, [setSearchPlaceholder])
 
-  // ── Back gesture (Android/browser) → navigate to parent folder ──────────────
+  // ── Back gesture (Android/browser) → exit selection sau navigate up ──────────
   useEffect(() => {
     const onPopState = () => {
+      if (selectionModeRef.current) {
+        clearSelection()
+        return
+      }
       isPopRef.current = true
       navigateUp()
     }
     window.addEventListener('popstate', onPopState)
     return () => window.removeEventListener('popstate', onPopState)
-  }, [navigateUp])
+  }, [navigateUp, clearSelection])
 
   useEffect(() => {
     if (isPopRef.current) {
@@ -157,9 +182,6 @@ export default function CatalogPage() {
       window.history.pushState({ catalogFolder: currentFolderId }, '')
     }
   }, [currentFolderId])
-
-  // Clear search when leaving the page would also be sensible, but query lives
-  // in useAppStore and is reset by other pages' own placeholder effects.
 
   // ── Toast ────────────────────────────────────────────────────────────────────
   const showToast = useCallback((message) => {
@@ -187,31 +209,73 @@ export default function CatalogPage() {
     () => (isSearching ? filterAndSort(searchableNodes, searchQuery, (n) => n.name) : []),
     [isSearching, searchableNodes, searchQuery]
   )
-  const searchTree = useMemo(
-    () => (isSearching ? buildSearchTree(searchMatches, getAncestorFolders) : null),
-    [isSearching, searchMatches, getAncestorFolders]
+  const searchTree = useMemo(() => {
+    if (!isSearching) return null
+    const tree = buildSearchTree(searchMatches, getAncestorFolders)
+    const orderOf = (id) => nodes.findIndex((n) => n.id === id)
+    sortTreeFolders(tree, orderOf)
+    return tree
+  }, [isSearching, searchMatches, getAncestorFolders, nodes])
+
+  // A2 — „+ Adaugă" apare pe match inexact (normalizat) oriunde în arbore,
+  // nu pe zero rezultate. Chiar dacă există rezultate similare prin substring.
+  const exactExists = useMemo(
+    () => nodes.some((n) => normalize(n.name) === normalize(searchQuery.trim())),
+    [nodes, searchQuery]
   )
+  const showCreate = !selectionMode && isSearching && !exactExists
 
   const handleCreateFromSearch = useCallback(() => {
     const name = searchQuery.trim()
     if (!name) return
+    // Gardă hard: re-verifică unicitatea globală chiar înainte de creare.
+    if (nodes.some((n) => normalize(n.name) === normalize(name))) {
+      showToast(`Există deja „${name}"`)
+      return
+    }
     const ok = addCategory(name, currentFolderId)
-    if (!ok) showToast('Categoria există deja')
+    if (!ok) showToast(`Există deja „${name}"`)
     else {
       showToast(`„${name}" adăugată`)
       clearSearch()
     }
-  }, [searchQuery, addCategory, currentFolderId, clearSearch, showToast])
+  }, [searchQuery, nodes, addCategory, currentFolderId, clearSearch, showToast])
 
-  // ── Context menu (stub — neoperațional acum) ─────────────────────────────────
-  const handleStub = useCallback(() => {
+  // ── Selection mode ───────────────────────────────────────────────────────────
+  const selectionItems = useMemo(() => {
+    if (!selectionMode) return []
+    return isSearching
+      ? filterAndSort(currentChildren, searchQuery, (n) => n.name)
+      : currentChildren
+  }, [selectionMode, isSearching, currentChildren, searchQuery])
+
+  const handleContinue = useCallback(() => {
+    if (selectionMode === 'group') setGroupSheetOpen(true)
+    else if (selectionMode === 'move') setMoveSheetOpen(true)
+  }, [selectionMode])
+
+  // ── Context menu — Config (Grupare / Mutare) ─────────────────────────────────
+  const handleGroup = useCallback(() => {
     closeCatalogMenu()
-    showToast('Funcționalitate în curând')
-  }, [closeCatalogMenu, showToast])
+    setConfigOpen(false)
+    clearSearch()
+    enterSelectionMode('group')
+  }, [closeCatalogMenu, clearSearch, enterSelectionMode])
+
+  const handleMove = useCallback(() => {
+    closeCatalogMenu()
+    setConfigOpen(false)
+    clearSearch()
+    enterSelectionMode('move')
+  }, [closeCatalogMenu, clearSearch, enterSelectionMode])
+
+  // Grupare: doar la rădăcină, cu ≥2 elemente negrupate. Mutare: nivel cu ≥1 element.
+  const groupDisabled = !isRoot || currentChildren.length < 2
+  const moveDisabled = currentChildren.length < 1
 
   const configMenuItems = [
-    { label: 'Grupare', icon: <Layers size={18} />, action: handleStub },
-    { label: 'Mutare', icon: <FolderInput size={18} />, action: handleStub },
+    { label: 'Grupare', icon: <Layers size={18} />, action: handleGroup, disabled: groupDisabled },
+    { label: 'Mutare', icon: <FolderInput size={18} />, action: handleMove, disabled: moveDisabled },
   ]
 
   const handleToggleTree = useCallback(() => {
@@ -252,10 +316,27 @@ export default function CatalogPage() {
         <div className="flex-1 overflow-y-auto">
           <FullTree parentId={null} depth={0} getChildren={getChildren} />
         </div>
+      ) : selectionMode ? (
+        <div className="flex-1 overflow-y-auto divide-y divide-zinc-800">
+          {selectionItems.map((node) => (
+            <NodeCard
+              key={node.id}
+              node={node}
+              selectable
+              selected={selectedNodeIds.has(node.id)}
+              onTap={(n) => toggleNodeSelection(n.id)}
+            />
+          ))}
+          {selectionItems.length === 0 && (
+            <div className="px-4 py-8 text-center text-sm text-zinc-500">
+              Niciun element
+            </div>
+          )}
+        </div>
       ) : isSearching ? (
         <div className="flex-1 overflow-y-auto divide-y divide-zinc-800">
           <SearchGroup group={searchTree} depth={0} onTap={handleTap} />
-          {searchMatches.length === 0 && (
+          {showCreate && (
             <button
               onClick={handleCreateFromSearch}
               className="w-full flex items-center gap-3 px-4 py-3.5 text-left text-blue-400 active:bg-zinc-900"
@@ -280,8 +361,8 @@ export default function CatalogPage() {
         </div>
       )}
 
-      {/* FAB „+" — vizibil doar când căutarea nu are rezultate */}
-      {isSearching && searchMatches.length === 0 && (
+      {/* FAB „+" — vizibil doar când căutarea nu are match exact */}
+      {showCreate && (
         <button
           onClick={handleCreateFromSearch}
           className="absolute right-4 z-20 flex items-center justify-center w-14 h-14 rounded-full bg-blue-600 text-white shadow-xl active:bg-blue-700"
@@ -290,6 +371,9 @@ export default function CatalogPage() {
           <Plus size={24} />
         </button>
       )}
+
+      {/* Action bar — mod selecție (deasupra BottomBar-ului) */}
+      <ActionBar onContinue={handleContinue} />
 
       {/* Toast */}
       {toast && (
@@ -313,13 +397,19 @@ export default function CatalogPage() {
           </button>
           {configOpen && (
             <div className="pl-6">
-              {configMenuItems.map(({ label, icon, action }) => (
+              {configMenuItems.map(({ label, icon, action, disabled }) => (
                 <button
                   key={label}
-                  onClick={action}
-                  className="w-full flex items-center gap-3 px-3 py-3.5 rounded-xl text-sm text-zinc-200 hover:bg-zinc-800 active:bg-zinc-700"
+                  onClick={disabled ? undefined : action}
+                  disabled={disabled}
+                  className={[
+                    'w-full flex items-center gap-3 px-3 py-3.5 rounded-xl text-sm',
+                    disabled
+                      ? 'text-zinc-600 cursor-not-allowed'
+                      : 'text-zinc-200 hover:bg-zinc-800 active:bg-zinc-700',
+                  ].join(' ')}
                 >
-                  <span className="text-zinc-400">{icon}</span>
+                  <span className={disabled ? 'text-zinc-600' : 'text-zinc-400'}>{icon}</span>
                   <span className="flex-1 text-left">{label}</span>
                 </button>
               ))}
@@ -336,6 +426,18 @@ export default function CatalogPage() {
           </button>
         </div>
       </BottomSheet>
+
+      {/* Sheets pasul final */}
+      <GroupNameSheet
+        open={groupSheetOpen}
+        onClose={() => setGroupSheetOpen(false)}
+        showToast={showToast}
+      />
+      <MoveDestinationSheet
+        open={moveSheetOpen}
+        onClose={() => setMoveSheetOpen(false)}
+        showToast={showToast}
+      />
     </div>
   )
 }
