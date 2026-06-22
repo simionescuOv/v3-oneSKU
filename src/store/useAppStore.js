@@ -17,4 +17,8 @@ export const useAppStore = create((set) => ({
   catalogMenuOpen: false,
   openCatalogMenu: () => set({ catalogMenuOpen: true }),
   closeCatalogMenu: () => set({ catalogMenuOpen: false }),
+
+  // Forțează ascunderea BottomBar-ului (sheet fără căutare — ex: GroupNameSheet)
+  bottomBarHidden: false,
+  setBottomBarHidden: (v) => set({ bottomBarHidden: v }),
 }))

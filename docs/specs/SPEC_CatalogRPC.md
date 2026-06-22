@@ -412,7 +412,7 @@ begin
     end if;
   end if;
 
-  -- 3. Insert (unicitatea de sibling name e enforțată de indexul uq_categories_sibling_name)
+  -- 3. Insert (unicitatea globală e enforțată de indexul uq_categories_global_name)
   insert into categories (tenant_id, parent_id, name, node_type, position)
   values (
     p_tenant_id,
@@ -435,9 +435,10 @@ end $$;
 
 ### Tratarea duplicatelor
 
-Indexul `uq_categories_sibling_name` (din schema v2) va arunca o eroare de unicitate
-dacă un nod cu același nume și același părinte există deja (printre cele neșterse).
-Clientul prinde eroarea și afișează toast „Categoria/Folderul există deja".
+Indexul `uq_categories_global_name` (din schema v2, IMPL_GrupareMutare §A1) va
+arunca o eroare de unicitate dacă un nod cu același nume există deja oriunde în
+arborele tenantului (printre cele neșterse), indiferent de părinte. Clientul
+prinde eroarea și afișează toast „Categoria/Folderul există deja".
 
 ---
 

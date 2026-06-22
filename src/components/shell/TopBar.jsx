@@ -17,9 +17,12 @@ export default function TopBar() {
   const currentFolderId = useCatalogStore((s) => s.currentFolderId)
   const navigateUp = useCatalogStore((s) => s.navigateUp)
   const getBreadcrumb = useCatalogStore((s) => s.getBreadcrumb)
+  const selectionMode = useCatalogStore((s) => s.selectionMode)
+  const clearSelection = useCatalogStore((s) => s.clearSelection)
 
   const isHome = pathname === '/'
   const isCatalog = pathname === '/catalog'
+  const inSelection = isCatalog && selectionMode !== null
   const inFolder = isCatalog && currentFolderId !== null
   const showHomeBack = !isHome && !inFolder
 
@@ -29,9 +32,9 @@ export default function TopBar() {
 
   return (
     <header className="flex-none flex items-center px-4 h-14 bg-zinc-900 border-b border-zinc-800 gap-3">
-      {(inFolder || showHomeBack) && (
+      {(inSelection || inFolder || showHomeBack) && (
         <button
-          onClick={inFolder ? navigateUp : () => navigate('/')}
+          onClick={inSelection ? clearSelection : inFolder ? navigateUp : () => navigate('/')}
           className="flex items-center justify-center -ml-1 w-8 h-8 rounded-lg text-zinc-400 active:text-zinc-100 active:bg-zinc-800"
         >
           <ChevronLeft size={22} />

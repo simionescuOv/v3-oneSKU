@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo } from 'react'
-import { filterAndSort } from '../lib/search'
+import { filterAndSort, normalize } from '../lib/search'
 
 /**
  * usePicker — motorul de căutare + selecție al aplicației (SPEC_Picker_v2).
@@ -48,9 +48,12 @@ export function usePicker({
     [items, query, labelFn]
   )
 
-  // „+ Adaugă «query»" apare la allowCreate + zero rezultate (SPEC §4.2, §5)
+  // „+ Adaugă «query»" apare pe match inexact (normalizat, diacritic-insensitive),
+  // nu pe zero rezultate (IMPL_GrupareMutare §A2).
+  const inlineExactExists =
+    isInline && items.some((it) => normalize(labelFn(it)) === normalize(trimmedQuery))
   const showCreate =
-    isInline && allowCreate && trimmedQuery.length > 0 && filteredItems.length === 0
+    isInline && allowCreate && trimmedQuery.length > 0 && !inlineExactExists
 
   // ── Mod standalone: filtrare pe opțiuni locale, excluzând cele deja selectate ─
   const filteredOptions = useMemo(() => {
@@ -139,8 +142,11 @@ export function usePicker({
 
   const isAtMax = tempSelected.length >= maxSelections
 
+  // „+ Adaugă" apare pe match inexact (normalizat, diacritic-insensitive),
+  // nu pe zero rezultate — chiar dacă există rezultate similare prin
+  // substring (IMPL_GrupareMutare §A2).
   const exactExists = localOptions.some(
-    (o) => labelFn(o).toLowerCase() === trimmedQuery.toLowerCase()
+    (o) => normalize(labelFn(o)) === normalize(trimmedQuery)
   )
   const showAddRow = allowCreate && trimmedQuery.length > 0 && !exactExists
 
