@@ -85,9 +85,13 @@ create index idx_categories_tenant_parent on categories(tenant_id, parent_id);
 -- 🔧 index pe deleted_at — păstrat, dar vezi indexul parțial de mai jos pt. listele live
 create index idx_categories_deleted_at on categories(deleted_at) where deleted_at is not null;
 
--- ➕ unicitate: două noduri-frate nu pot avea același nume (printre cele NEsterse)
-create unique index uq_categories_sibling_name
-  on categories(tenant_id, parent_id, name)
+-- 🔧 unicitate GLOBALĂ pe tenant, nu doar între frați (IMPL_GrupareMutare §A1):
+-- două noduri (folder SAU categorie) nu pot avea același nume oriunde în arbore,
+-- printre cele NEsterse. Necesar pentru Grupare (folderul nou trebuie să fie
+-- unic în tot catalogul, nu doar la rădăcină) și pentru căutarea unificată
+-- (search-ul tratează numele ca identificator unic, indiferent de părinte).
+create unique index uq_categories_global_name
+  on categories(tenant_id, name)
   where deleted_at is null;
 
 create trigger trg_categories_updated_at
