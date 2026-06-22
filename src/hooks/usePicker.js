@@ -1,30 +1,78 @@
 import { useState, useCallback, useMemo } from 'react'
-import { scoreMatch, normalize } from '../lib/search'
+import { filterAndSort, normalize } from '../lib/search'
 
+/**
+ * usePicker — motorul de căutare + selecție al aplicației (SPEC_Picker_v2).
+ *
+ * Două moduri de operare:
+ *
+ * 1. `mode: 'inline'` (BottomBar) — filtrează în loc lista paginii curente.
+ *    Query-ul e *controlat din afară* (input-ul trăiește în BottomBar / useAppStore),
+ *    iar elementele pot fi obiecte arbitrare extrase cu `labelFn`.
+ *    Returnează `filteredItems` + `showCreate`; pagina decide ce face la tap/creare.
+ *
+ * 2. `mode: 'standalone'` (picker dedicat tip chip-input) — query intern, stare de
+ *    deschidere, selecție temporară confirmată explicit. Returnează `onChange` la commit.
+ *
+ * Ambele moduri folosesc `filterAndSort` din `src/lib/search.js` (algoritmul canonic,
+ * cu normalizare NFD + substring fallback) — fără duplicare de logică (SPEC §2, §6).
+ */
 export function usePicker({
+  mode = 'standalone',
+  // Sursa de date: `items` (inline, obiecte) sau `options` (standalone, string-uri)
+  items = [],
   options = [],
-  value = [],
+  labelFn = (x) => x,
   multiSelect = false,
   allowCreate = false,
+  // Inline-specific: query controlat din BottomBar
+  query: controlledQuery = '',
+  // Standalone-specific
+  value = [],
   maxSelections = Infinity,
   onChange,
 }) {
   const [localOptions, setLocalOptions] = useState([...options])
   const [tempSelected, setTempSelected] = useState([])
-  const [query, setQuery] = useState('')
+  const [internalQuery, setInternalQuery] = useState('')
   const [markedForDelete, setMarkedForDelete] = useState(false)
   const [isOpen, setIsOpen] = useState(false)
 
+  const isInline = mode === 'inline'
+  const query = isInline ? controlledQuery : internalQuery
+  const trimmedQuery = query.trim()
+
+  // ── Mod inline: filtrare directă pe lista paginii ───────────────────────────
+  const filteredItems = useMemo(
+    () => filterAndSort(items, query, labelFn),
+    [items, query, labelFn]
+  )
+
+  // „+ Adaugă «query»" apare pe match inexact (normalizat, diacritic-insensitive),
+  // nu pe zero rezultate (IMPL_GrupareMutare §A2).
+  const inlineExactExists =
+    isInline && items.some((it) => normalize(labelFn(it)) === normalize(trimmedQuery))
+  const showCreate =
+    isInline && allowCreate && trimmedQuery.length > 0 && !inlineExactExists
+
+  // ── Mod standalone: filtrare pe opțiuni locale, excluzând cele deja selectate ─
+  const filteredOptions = useMemo(() => {
+    const base = multiSelect
+      ? localOptions.filter((o) => !tempSelected.includes(o))
+      : localOptions
+    return filterAndSort(base, query, labelFn)
+  }, [localOptions, query, multiSelect, tempSelected, labelFn])
+
   const open = useCallback(() => {
     setTempSelected(multiSelect ? [...value] : [])
-    setQuery('')
+    setInternalQuery('')
     setMarkedForDelete(false)
     setIsOpen(true)
   }, [value, multiSelect])
 
   const close = useCallback(() => {
     setIsOpen(false)
-    setQuery('')
+    setInternalQuery('')
     setMarkedForDelete(false)
   }, [])
 
@@ -44,7 +92,7 @@ export function usePicker({
       if (prev.length >= maxSelections) return prev
       return [...prev, val]
     })
-    setQuery('')
+    setInternalQuery('')
     setMarkedForDelete(false)
   }, [multiSelect, maxSelections, commit, close])
 
@@ -54,21 +102,21 @@ export function usePicker({
   }, [])
 
   const handleQueryChange = useCallback((val) => {
-    setQuery(val)
+    setInternalQuery(val)
     if (val.length > 0) setMarkedForDelete(false)
   }, [])
 
   const handleBackspace = useCallback(() => {
-    if (query !== '' || tempSelected.length === 0) return
+    if (internalQuery !== '' || tempSelected.length === 0) return
     if (!markedForDelete) setMarkedForDelete(true)
     else {
       setTempSelected((p) => p.slice(0, -1))
       setMarkedForDelete(false)
     }
-  }, [query, tempSelected, markedForDelete])
+  }, [internalQuery, tempSelected, markedForDelete])
 
   const handleAddNew = useCallback(() => {
-    const trimmed = query.trim()
+    const trimmed = internalQuery.trim()
     if (!trimmed) return
     setLocalOptions((prev) =>
       prev.includes(trimmed) ? prev : [...prev, trimmed]
@@ -80,8 +128,8 @@ export function usePicker({
     }
     if (tempSelected.length >= maxSelections) return
     setTempSelected((prev) => [...prev, trimmed])
-    setQuery('')
-  }, [query, multiSelect, tempSelected, maxSelections, commit, close])
+    setInternalQuery('')
+  }, [internalQuery, multiSelect, tempSelected, maxSelections, commit, close])
 
   const handleSave = useCallback(() => {
     commit(tempSelected)
@@ -94,31 +142,26 @@ export function usePicker({
 
   const isAtMax = tempSelected.length >= maxSelections
 
-  const filteredOptions = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    const tokens = q ? q.split(/\s+/) : []
-    const scored = []
-    for (const opt of localOptions) {
-      if (multiSelect && tempSelected.includes(opt)) continue
-      if (!tokens.length) {
-        scored.push({ opt, score: 0 })
-        continue
-      }
-      const s = scoreMatch(opt, tokens)
-      if (s !== null) scored.push({ opt, score: s })
-    }
-    scored.sort((a, b) => a.score - b.score)
-    return scored.map((s) => s.opt)
-  }, [localOptions, query, multiSelect, tempSelected])
-
-  // „+ Adaugă" apare pe match inexact (normalizat), nu pe zero rezultate —
-  // chiar dacă există rezultate similare prin substring (vezi IMPL_GrupareMutare A2).
+  // „+ Adaugă" apare pe match inexact (normalizat, diacritic-insensitive),
+  // nu pe zero rezultate — chiar dacă există rezultate similare prin
+  // substring (IMPL_GrupareMutare §A2).
   const exactExists = localOptions.some(
-    (o) => normalize(o) === normalize(query.trim())
+    (o) => normalize(labelFn(o)) === normalize(trimmedQuery)
   )
-  const showAddRow = allowCreate && query.trim().length > 0 && !exactExists
+  const showAddRow = allowCreate && trimmedQuery.length > 0 && !exactExists
+
+  if (isInline) {
+    return {
+      mode,
+      query,
+      filteredItems,
+      showCreate,
+      allowCreate,
+    }
+  }
 
   return {
+    mode,
     isOpen, tempSelected, localOptions, query, markedForDelete,
     filteredOptions, isAtMax, showAddRow, multiSelect, allowCreate,
     open, close, handleSelect, handleRemove, handleQueryChange,

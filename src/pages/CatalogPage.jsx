@@ -6,11 +6,14 @@ import {
 import { useCatalogStore } from '../store/useCatalogStore'
 import { useAppStore } from '../store/useAppStore'
 import { filterAndSort, normalize } from '../lib/search'
+import { usePicker } from '../hooks/usePicker'
 import NodeCard from '../components/catalog/NodeCard'
 import BottomSheet from '../components/catalog/BottomSheet'
 import ActionBar from '../components/catalog/ActionBar'
 import GroupNameSheet from '../components/catalog/GroupNameSheet'
 import MoveDestinationSheet from '../components/catalog/MoveDestinationSheet'
+
+const nodeLabel = (node) => node.name
 
 function buildSearchTree(matches, getAncestorFolders) {
   const root = { node: null, children: [], categories: [], matched: false }
@@ -201,14 +204,21 @@ export default function CatalogPage() {
 
   // ── Search (= unicul mecanism de adăugare categorie) ─────────────────────────
   // Caută atât în categorii, cât și în foldere (ex: „i” → folderul „Îmbrăcăminte”)
+  // Modul inline al usePicker: BottomBar deține input-ul, hook-ul filtrează lista.
   const searchableNodes = useMemo(
     () => nodes.filter((n) => n.type === 'category' || n.type === 'folder'),
     [nodes]
   )
-  const searchMatches = useMemo(
-    () => (isSearching ? filterAndSort(searchableNodes, searchQuery, (n) => n.name) : []),
-    [isSearching, searchableNodes, searchQuery]
-  )
+  // usePicker (mod inline, SPEC_Picker_v2) e motorul canonic de căutare;
+  // A2 e implementat în interiorul hook-ului (exactExists normalizat).
+  const { filteredItems: searchMatches, showCreate: pickerShowCreate } = usePicker({
+    mode: 'inline',
+    items: isSearching ? searchableNodes : [],
+    labelFn: nodeLabel,
+    query: searchQuery,
+    multiSelect: false,
+    allowCreate: true,
+  })
   const searchTree = useMemo(() => {
     if (!isSearching) return null
     const tree = buildSearchTree(searchMatches, getAncestorFolders)
@@ -217,13 +227,7 @@ export default function CatalogPage() {
     return tree
   }, [isSearching, searchMatches, getAncestorFolders, nodes])
 
-  // A2 — „+ Adaugă" apare pe match inexact (normalizat) oriunde în arbore,
-  // nu pe zero rezultate. Chiar dacă există rezultate similare prin substring.
-  const exactExists = useMemo(
-    () => nodes.some((n) => normalize(n.name) === normalize(searchQuery.trim())),
-    [nodes, searchQuery]
-  )
-  const showCreate = !selectionMode && isSearching && !exactExists
+  const showCreate = !selectionMode && pickerShowCreate
 
   const handleCreateFromSearch = useCallback(() => {
     const name = searchQuery.trim()

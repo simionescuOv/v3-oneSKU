@@ -164,16 +164,33 @@ export const useCatalogStore = create((set, get) => ({
     set((s) => ({ trash: s.trash.filter((n) => n.id !== id) }))
   },
 
-  // ── Group (only at root, creates a new folder) ───────────────────────
-  // Numele folderului nou trebuie să fie unic global. Întoarce false dacă există deja.
+  // ── Group (only at root, creates/uses folder) ────────────────────────
+  // SPEC_CatalogPage_v2 §6.1: disponibilă doar la rădăcină, minim 2 elemente.
+  // Numele e unic global (IMPL_GrupareMutare §A1) — exceptând reutilizarea
+  // unui folder rădăcină existent cu același nume (nu e o coliziune nouă).
+  // Returnează false dacă pre-condițiile nu sunt îndeplinite.
   groupNodes: (ids, folderName) => {
     const { nodes } = get()
-    if (nameExistsGlobally(nodes, folderName)) return false
-    const folder = { id: genId('f'), type: 'folder', name: folderName.trim(), parentId: null }
-    set({
-      nodes: [...nodes, folder].map((n) =>
-        ids.includes(n.id) ? { ...n, parentId: folder.id } : n
-      ),
+    if (!Array.isArray(ids) || ids.length < 2) return false
+    const allAtRoot = ids.every((id) => {
+      const node = nodes.find((n) => n.id === id)
+      return node && node.parentId === null
+    })
+    if (!allAtRoot) return false
+    const existingRootFolder = nodes.find(
+      (n) => n.type === 'folder' && n.parentId === null && normalize(n.name) === normalize(folderName.trim())
+    )
+    if (!existingRootFolder && nameExistsGlobally(nodes, folderName)) return false
+    set((s) => {
+      let folder = existingRootFolder
+      let next = s.nodes
+      if (!folder) {
+        folder = { id: genId('f'), type: 'folder', name: folderName.trim(), parentId: null }
+        next = [...next, folder]
+      }
+      return {
+        nodes: next.map((n) => ids.includes(n.id) ? { ...n, parentId: folder.id } : n),
+      }
     })
     return true
   },
@@ -193,14 +210,13 @@ export const useCatalogStore = create((set, get) => ({
     return true
   },
 
-  // Returns folder ids that are valid move destinations (excludes movedIds and their descendants)
-  getValidMoveDestinations: (movedIds) => {
+  // Folderele valide ca destinație de mutare pentru un nod (exclude nodul însuși
+  // și descendenții lui). Semnătură aliniată la SPEC_CatalogRPC §1.1
+  // (`get_valid_move_targets(p_node_id)`) — un singur nod.
+  getValidMoveDestinations: (nodeId) => {
     const { nodes } = get()
-    const excluded = new Set(movedIds)
-    for (const id of movedIds) {
-      const desc = getDescendantIds(nodes, id)
-      for (const d of desc) excluded.add(d)
-    }
+    const excluded = getDescendantIds(nodes, nodeId)
+    excluded.add(nodeId)
     return nodes.filter((n) => n.type === 'folder' && !excluded.has(n.id))
   },
 }))

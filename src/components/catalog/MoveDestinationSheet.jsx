@@ -32,10 +32,15 @@ export default function MoveDestinationSheet({ open, onClose, showToast }) {
     }
   }, [open, clearSearch, setSearchPlaceholder])
 
-  const validFolders = useMemo(
-    () => (open ? getValidMoveDestinations(ids) : []),
-    [open, ids, getValidMoveDestinations]
-  )
+  // Dacă selecția are mai multe elemente, destinațiile valide sunt
+  // intersecția destinațiilor valide ale tuturor (IMPL_GrupareMutare §C3) —
+  // store-ul expune getValidMoveDestinations per nod (SPEC_CatalogRPC §1.1).
+  const validFolders = useMemo(() => {
+    if (!open || ids.length === 0) return []
+    const perNode = ids.map((id) => getValidMoveDestinations(id))
+    const [first, ...rest] = perNode
+    return first.filter((folder) => rest.every((list) => list.some((f) => f.id === folder.id)))
+  }, [open, ids, getValidMoveDestinations])
 
   const filteredFolders = useMemo(
     () => filterAndSort(validFolders, searchQuery, (f) => f.name),
