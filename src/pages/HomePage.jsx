@@ -1,5 +1,5 @@
 // Cuvânt generat la acest push, pentru verificarea versiunii deployed pe Vercel.
-const BUILD_WORD = 'mărgean'
+const BUILD_WORD = 'colind'
 
 export default function HomePage() {
   return (

@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import {
-  Plus, Layers, FolderInput, ChevronRight, ChevronDown, Folder, Tag,
+  Plus, Layers, FolderInput, ChevronRight, ChevronLeft, ChevronDown, Folder, Tag,
   Settings, UnfoldVertical, FoldVertical, Check,
 } from 'lucide-react'
 import { useCatalogStore } from '../store/useCatalogStore'
@@ -15,6 +15,7 @@ import DestinationPicker from '../components/catalog/DestinationPicker'
 import SubgroupSheet from '../components/catalog/SubgroupSheet'
 
 const nodeLabel = (node) => node.name
+const ELLIPSIS_CRUMB = { id: '__ellipsis__', name: '…' }
 
 function buildSearchTree(matches, getAncestorFolders) {
   const root = { node: null, children: [], categories: [], matched: false }
@@ -412,36 +413,65 @@ export default function CatalogPage() {
     return set
   }, [isSearching, treeExpanded, searchMatches, getAncestorFolders])
 
+  // ── Header propriu (back + cale clicabilă) — Catalog n-are TopBar generic ────
+  // „Catalog" e mereu primul, cu chenar de buton (nu e folder). Calea arată
+  // obligatoriu primul și ultimul element; mijlocul se trunchiază cu „…".
+  const breadcrumbChain = useMemo(() => {
+    const chain = [{ id: null, name: 'Catalog' }, ...getBreadcrumb()]
+    if (chain.length <= 4) return chain
+    return [chain[0], ELLIPSIS_CRUMB, chain[chain.length - 1]]
+  }, [getBreadcrumb, currentFolderId])
+
+  const handleBack = useCallback(() => {
+    if (selectionMode) clearSelection()
+    else if (!isRoot) navigateUp()
+  }, [selectionMode, isRoot, clearSelection, navigateUp])
+
   return (
     <div className="flex flex-col h-full">
-      {/* Breadcrumb bar — calea către folderul curent. Font mai mare ca să fie
-          lizibilă; ultimul segment (folderul curent) e colorat și îngroșat,
-          fără un titlu separat redundant (vezi TopBar). Vizibilă inclusiv în
-          Unfold — nu mai dispare la expandarea arborelui. */}
-      {!isRoot && (
-        <div className="flex items-center gap-1.5 px-4 py-2.5 overflow-x-auto border-b border-zinc-800">
+      {/* Header propriu — back + cale clicabilă, înlocuiește TopBar-ul generic
+          (redundant pe Catalog). „Catalog" are chenar de buton (nu e folder);
+          fiecare element e link direct spre rută. Rămâne vizibil inclusiv în
+          Unfold. Calea trunchiată arată mereu primul și ultimul element. */}
+      <div className="flex-none flex items-center gap-1 px-2 h-12 border-b border-zinc-800">
+        {(selectionMode || !isRoot) && (
           <button
-            onClick={() => navigate(null)}
-            className="text-sm text-zinc-400 shrink-0 hover:text-zinc-100"
+            onClick={handleBack}
+            className="shrink-0 flex items-center justify-center w-8 h-8 rounded-lg text-zinc-400 active:text-zinc-100 active:bg-zinc-800"
           >
-            Catalog
+            <ChevronLeft size={20} />
           </button>
-          {getBreadcrumb().map((crumb, i, arr) => (
-            <span key={crumb.id} className="flex items-center gap-1.5 shrink-0">
-              <ChevronRight size={14} className="text-zinc-600" />
-              <button
-                onClick={() => navigate(crumb.id)}
-                className={[
-                  'text-sm',
-                  i === arr.length - 1 ? 'text-amber-400 font-semibold' : 'text-zinc-400 hover:text-zinc-100',
-                ].join(' ')}
-              >
-                {crumb.name}
-              </button>
-            </span>
-          ))}
+        )}
+        <div className="flex items-center gap-1.5 overflow-x-auto">
+          {breadcrumbChain.map((crumb, i, arr) => {
+            const isLast = i === arr.length - 1
+            const isRootCrumb = crumb.id === null
+            const isEllipsis = crumb === ELLIPSIS_CRUMB
+            return (
+              <span key={crumb.id ?? `crumb-${i}`} className="flex items-center gap-1.5 shrink-0">
+                {i > 0 && <span className="text-zinc-600 text-sm">|</span>}
+                {isEllipsis ? (
+                  <span className="text-sm text-zinc-500 px-0.5">…</span>
+                ) : (
+                  <button
+                    onClick={() => navigate(crumb.id)}
+                    className={[
+                      'text-sm whitespace-nowrap',
+                      isRootCrumb
+                        ? 'px-2.5 py-1 rounded-lg border border-zinc-700 text-zinc-300 hover:border-zinc-500 hover:text-zinc-100'
+                        : isLast
+                          ? 'text-amber-400 font-semibold'
+                          : 'text-zinc-400 hover:text-zinc-100',
+                    ].join(' ')}
+                  >
+                    {crumb.name}
+                  </button>
+                )}
+              </span>
+            )
+          })}
         </div>
-      )}
+      </div>
 
       {/* Main content */}
       {treeExpanded ? (
