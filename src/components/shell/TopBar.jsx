@@ -16,7 +16,6 @@ export default function TopBar() {
   const navigate = useNavigate()
   const currentFolderId = useCatalogStore((s) => s.currentFolderId)
   const navigateUp = useCatalogStore((s) => s.navigateUp)
-  const getBreadcrumb = useCatalogStore((s) => s.getBreadcrumb)
   const selectionMode = useCatalogStore((s) => s.selectionMode)
   const clearSelection = useCatalogStore((s) => s.clearSelection)
 
@@ -26,9 +25,10 @@ export default function TopBar() {
   const inFolder = isCatalog && currentFolderId !== null
   const showHomeBack = !isHome && !inFolder
 
-  const currentFolderName = inFolder
-    ? getBreadcrumb().at(-1)?.name ?? 'Catalog'
-    : PAGE_TITLES[pathname] ?? 'oneSku'
+  // Titlul rămâne generic — calea către folderul curent e afișată prin
+  // breadcrumb-ul din CatalogPage (font mai mare, ultimul segment colorat),
+  // ca să nu mai existe afișarea redundantă a numelui folderului selectat.
+  const currentFolderName = PAGE_TITLES[pathname] ?? 'oneSku'
 
   return (
     <header className="flex-none flex items-center px-4 h-14 bg-zinc-900 border-b border-zinc-800 gap-3">

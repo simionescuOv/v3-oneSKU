@@ -414,23 +414,26 @@ export default function CatalogPage() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Breadcrumb bar */}
-      {!isRoot && !treeExpanded && (
-        <div className="flex items-center gap-1 px-4 py-2 overflow-x-auto border-b border-zinc-800">
+      {/* Breadcrumb bar — calea către folderul curent. Font mai mare ca să fie
+          lizibilă; ultimul segment (folderul curent) e colorat și îngroșat,
+          fără un titlu separat redundant (vezi TopBar). Vizibilă inclusiv în
+          Unfold — nu mai dispare la expandarea arborelui. */}
+      {!isRoot && (
+        <div className="flex items-center gap-1.5 px-4 py-2.5 overflow-x-auto border-b border-zinc-800">
           <button
             onClick={() => navigate(null)}
-            className="text-xs text-zinc-400 shrink-0 hover:text-zinc-100"
+            className="text-sm text-zinc-400 shrink-0 hover:text-zinc-100"
           >
             Catalog
           </button>
           {getBreadcrumb().map((crumb, i, arr) => (
-            <span key={crumb.id} className="flex items-center gap-1 shrink-0">
-              <ChevronRight size={12} className="text-zinc-600" />
+            <span key={crumb.id} className="flex items-center gap-1.5 shrink-0">
+              <ChevronRight size={14} className="text-zinc-600" />
               <button
                 onClick={() => navigate(crumb.id)}
                 className={[
-                  'text-xs',
-                  i === arr.length - 1 ? 'text-zinc-100 font-medium' : 'text-zinc-400 hover:text-zinc-100',
+                  'text-sm',
+                  i === arr.length - 1 ? 'text-amber-400 font-semibold' : 'text-zinc-400 hover:text-zinc-100',
                 ].join(' ')}
               >
                 {crumb.name}

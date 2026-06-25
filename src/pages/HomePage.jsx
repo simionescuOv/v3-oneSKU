@@ -1,5 +1,5 @@
 // Cuvânt generat la acest push, pentru verificarea versiunii deployed pe Vercel.
-const BUILD_WORD = 'vâltoare'
+const BUILD_WORD = 'mărgean'
 
 export default function HomePage() {
   return (
