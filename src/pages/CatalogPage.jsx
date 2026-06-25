@@ -97,49 +97,72 @@ function SearchGroup({ group, depth, onTap }) {
   )
 }
 
+const EMPTY_SET = new Set()
+
 // `selectable` activează checkbox-urile (SPEC_MutareCrossFolder §3.2 — mod
 // selecție Mutare cross-folder). Folderele temporare sunt deja filtrate de
 // `getChildren`, deci nu apar aici.
-function FullTree({ parentId, depth, getChildren, selectable, selectedIds, onToggle }) {
-  const children = getChildren(parentId)
-  return children.map((node) => (
-    <div key={node.id}>
-      <div
-        className="flex items-center gap-2 py-2.5 text-sm border-b border-zinc-900"
-        style={{ paddingLeft: 16 + depth * 16, paddingRight: 16 }}
-        onClick={selectable ? () => onToggle(node.id) : undefined}
-      >
-        {selectable && (
-          <span
-            className={[
-              'shrink-0 flex items-center justify-center w-5 h-5 rounded-full border',
-              selectedIds.has(node.id) ? 'bg-blue-600 border-blue-600 text-white' : 'border-zinc-600 text-transparent',
-            ].join(' ')}
+// Fold/unfold per-folder: checkbox-ul (selecție) și rândul (deschide/închide
+// folderul) au target-uri de tap separate, ca să nu se interfereze.
+// `visibleIds`, dacă e setat (căutare activă), restrânge nodurile afișate la
+// rezultate + lanțul lor de foldere-părinte (foldarea e ignorată în acest caz).
+function FullTree({ parentId, depth, getChildren, selectable, selectedIds, onToggle, collapsedIds, onToggleFold, visibleIds }) {
+  let children = getChildren(parentId)
+  if (visibleIds) children = children.filter((n) => visibleIds.has(n.id))
+  return children.map((node) => {
+    const isFolder = node.type === 'folder'
+    const isCollapsed = isFolder && !visibleIds && collapsedIds.has(node.id)
+    return (
+      <div key={node.id}>
+        <div
+          className="flex items-center gap-2 py-2.5 text-sm border-b border-zinc-900"
+          style={{ paddingLeft: 16 + depth * 16, paddingRight: 16 }}
+        >
+          {selectable && (
+            <span
+              onClick={() => onToggle(node.id)}
+              className={[
+                'shrink-0 flex items-center justify-center w-5 h-5 rounded-full border',
+                selectedIds.has(node.id) ? 'bg-blue-600 border-blue-600 text-white' : 'border-zinc-600 text-transparent',
+              ].join(' ')}
+            >
+              <Check size={14} />
+            </span>
+          )}
+          <div
+            className="flex-1 flex items-center gap-2 min-w-0"
+            onClick={isFolder ? () => onToggleFold(node.id) : (selectable ? () => onToggle(node.id) : undefined)}
           >
-            <Check size={14} />
-          </span>
-        )}
-        {node.type === 'folder'
-          ? <Folder size={16} className="text-amber-400 shrink-0" />
-          : <Tag size={16} className="text-blue-400 shrink-0" />
-        }
-        <span className="flex-1 text-zinc-100 truncate">{node.name}</span>
-        {node.type === 'category' && (
-          <span className="text-xs text-zinc-500 shrink-0">{node.products ?? 0} produse</span>
+            {isFolder
+              ? (isCollapsed ? <ChevronRight size={14} className="text-zinc-500 shrink-0" /> : <ChevronDown size={14} className="text-zinc-500 shrink-0" />)
+              : <span className="w-3.5 shrink-0" />
+            }
+            {isFolder
+              ? <Folder size={16} className="text-amber-400 shrink-0" />
+              : <Tag size={16} className="text-blue-400 shrink-0" />
+            }
+            <span className="flex-1 text-zinc-100 truncate">{node.name}</span>
+            {node.type === 'category' && (
+              <span className="text-xs text-zinc-500 shrink-0">{node.products ?? 0} produse</span>
+            )}
+          </div>
+        </div>
+        {isFolder && !isCollapsed && (
+          <FullTree
+            parentId={node.id}
+            depth={depth + 1}
+            getChildren={getChildren}
+            selectable={selectable}
+            selectedIds={selectedIds}
+            onToggle={onToggle}
+            collapsedIds={collapsedIds}
+            onToggleFold={onToggleFold}
+            visibleIds={visibleIds}
+          />
         )}
       </div>
-      {node.type === 'folder' && (
-        <FullTree
-          parentId={node.id}
-          depth={depth + 1}
-          getChildren={getChildren}
-          selectable={selectable}
-          selectedIds={selectedIds}
-          onToggle={onToggle}
-        />
-      )}
-    </div>
-  ))
+    )
+  })
 }
 
 export default function CatalogPage() {
@@ -180,6 +203,8 @@ export default function CatalogPage() {
   const [pendingMoveCount, setPendingMoveCount] = useState(0)
   const [destinationPickerOpen, setDestinationPickerOpen] = useState(false)
   const [subgroupSheetOpen, setSubgroupSheetOpen] = useState(false)
+  // Fold/unfold per-folder în modul Unfold (independent de selecție/căutare).
+  const [collapsedFolderIds, setCollapsedFolderIds] = useState(() => new Set())
   const toastTimer = useRef(null)
   const isPopRef = useRef(false)
   const selectionModeRef = useRef(selectionMode)
@@ -365,6 +390,28 @@ export default function CatalogPage() {
     closeCatalogMenu()
   }, [toggleTreeExpanded, closeCatalogMenu])
 
+  const toggleFold = useCallback((id) => {
+    setCollapsedFolderIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }, [])
+
+  // Căutarea în Unfold trebuie să filtreze exact ca în modul normal (același
+  // motor — usePicker/searchMatches): păstrăm doar rezultatele + lanțul lor
+  // de foldere-părinte, ca structura să rămână lizibilă.
+  const searchVisibleIds = useMemo(() => {
+    if (!isSearching || !treeExpanded) return null
+    const set = new Set()
+    for (const item of searchMatches) {
+      set.add(item.id)
+      for (const folder of getAncestorFolders(item.id)) set.add(folder.id)
+    }
+    return set
+  }, [isSearching, treeExpanded, searchMatches, getAncestorFolders])
+
   return (
     <div className="flex flex-col h-full">
       {/* Breadcrumb bar */}
@@ -395,7 +442,10 @@ export default function CatalogPage() {
 
       {/* Main content */}
       {treeExpanded ? (
-        <div className="flex-1 overflow-y-auto">
+        <div
+          className="flex-1 min-h-0 overflow-y-auto"
+          style={{ paddingBottom: selectionMode ? '3.5rem' : undefined }}
+        >
           <FullTree
             parentId={null}
             depth={0}
@@ -403,10 +453,21 @@ export default function CatalogPage() {
             selectable={selectionMode === 'move'}
             selectedIds={selectedNodeIds}
             onToggle={toggleNodeSelection}
+            collapsedIds={collapsedFolderIds}
+            onToggleFold={toggleFold}
+            visibleIds={searchVisibleIds}
           />
+          {isSearching && searchVisibleIds?.size === 0 && (
+            <div className="px-4 py-8 text-center text-sm text-zinc-500">
+              Niciun rezultat
+            </div>
+          )}
         </div>
       ) : selectionMode ? (
-        <div className="flex-1 overflow-y-auto divide-y divide-zinc-800">
+        <div
+          className="flex-1 min-h-0 overflow-y-auto divide-y divide-zinc-800"
+          style={{ paddingBottom: '3.5rem' }}
+        >
           {selectionItems.map((node) => (
             <NodeCard
               key={node.id}
@@ -423,7 +484,7 @@ export default function CatalogPage() {
           )}
         </div>
       ) : isSearching ? (
-        <div className="flex-1 overflow-y-auto divide-y divide-zinc-800">
+        <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-zinc-800">
           <SearchGroup group={searchTree} depth={0} onTap={handleTap} />
           {showCreate && (
             <button
@@ -443,7 +504,7 @@ export default function CatalogPage() {
           </p>
         </div>
       ) : (
-        <div className="flex-1 overflow-y-auto divide-y divide-zinc-800">
+        <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-zinc-800">
           {currentChildren.map((node) => (
             <NodeCard key={node.id} node={node} onTap={handleTap} />
           ))}

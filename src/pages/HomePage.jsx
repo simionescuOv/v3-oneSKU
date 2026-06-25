@@ -1,5 +1,5 @@
 // Cuvânt generat la acest push, pentru verificarea versiunii deployed pe Vercel.
-const BUILD_WORD = 'zefir'
+const BUILD_WORD = 'vâltoare'
 
 export default function HomePage() {
   return (
