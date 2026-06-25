@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
+import { useNavigate as useRouterNavigate } from 'react-router-dom'
 import {
   Plus, Layers, FolderInput, ChevronRight, ChevronLeft, ChevronDown, Folder, Tag,
   Settings, UnfoldVertical, FoldVertical, Check,
@@ -422,26 +423,28 @@ export default function CatalogPage() {
     return [chain[0], ELLIPSIS_CRUMB, chain[chain.length - 1]]
   }, [getBreadcrumb, currentFolderId])
 
+  const goHome = useRouterNavigate()
+
   const handleBack = useCallback(() => {
     if (selectionMode) clearSelection()
     else if (!isRoot) navigateUp()
-  }, [selectionMode, isRoot, clearSelection, navigateUp])
+    else goHome('/')
+  }, [selectionMode, isRoot, clearSelection, navigateUp, goHome])
 
   return (
     <div className="flex flex-col h-full">
       {/* Header propriu — back + cale clicabilă, înlocuiește TopBar-ul generic
           (redundant pe Catalog). „Catalog" are chenar de buton (nu e folder);
           fiecare element e link direct spre rută. Rămâne vizibil inclusiv în
-          Unfold. Calea trunchiată arată mereu primul și ultimul element. */}
+          Unfold. Calea trunchiată arată mereu primul și ultimul element.
+          Săgeata e mereu vizibilă: la root duce spre home, altfel un nivel sus. */}
       <div className="flex-none flex items-center gap-1 px-2 h-12 border-b border-zinc-800">
-        {(selectionMode || !isRoot) && (
-          <button
-            onClick={handleBack}
-            className="shrink-0 flex items-center justify-center w-8 h-8 rounded-lg text-zinc-400 active:text-zinc-100 active:bg-zinc-800"
-          >
-            <ChevronLeft size={20} />
-          </button>
-        )}
+        <button
+          onClick={handleBack}
+          className="shrink-0 flex items-center justify-center w-8 h-8 rounded-lg text-zinc-400 active:text-zinc-100 active:bg-zinc-800"
+        >
+          <ChevronLeft size={20} />
+        </button>
         <div className="flex items-center gap-1.5 overflow-x-auto">
           {breadcrumbChain.map((crumb, i, arr) => {
             const isLast = i === arr.length - 1
