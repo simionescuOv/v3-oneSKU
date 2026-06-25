@@ -1,5 +1,5 @@
 // Cuvânt generat la acest push, pentru verificarea versiunii deployed pe Vercel.
-const BUILD_WORD = 'lumânare'
+const BUILD_WORD = 'felinar'
 
 export default function HomePage() {
   return (

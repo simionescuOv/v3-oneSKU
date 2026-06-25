@@ -415,13 +415,39 @@ export default function CatalogPage() {
   }, [isSearching, treeExpanded, searchMatches, getAncestorFolders])
 
   // ── Header propriu (back + cale clicabilă) — Catalog n-are TopBar generic ────
-  // „Catalog" e mereu primul, cu chenar de buton (nu e folder). Calea arată
-  // obligatoriu primul și ultimul element; mijlocul se trunchiază cu „…".
-  const breadcrumbChain = useMemo(() => {
-    const chain = [{ id: null, name: 'Catalog' }, ...getBreadcrumb()]
-    if (chain.length <= 4) return chain
-    return [chain[0], ELLIPSIS_CRUMB, chain[chain.length - 1]]
-  }, [getBreadcrumb, currentFolderId])
+  // „Catalog" e mereu primul, cu chenar de buton (nu e folder). Pe un singur rând
+  // calea NU se scrolează orizontal: arată mereu primul și ultimul element, iar
+  // mijlocul se rupe cu „…". „…" e apăsabil → expandează toată calea pe mai multe
+  // rânduri (wrap), ca să poți sări direct la orice folder intermediar.
+  const fullCrumbs = useMemo(
+    () => [{ id: null, name: 'Catalog' }, ...getBreadcrumb()],
+    [getBreadcrumb, currentFolderId]
+  )
+  const isCrumbTruncated = fullCrumbs.length > 3
+  const collapsedCrumbs = isCrumbTruncated
+    ? [fullCrumbs[0], ELLIPSIS_CRUMB, fullCrumbs[fullCrumbs.length - 1]]
+    : fullCrumbs
+
+  const [crumbsExpanded, setCrumbsExpanded] = useState(false)
+  // Navigarea într-un alt folder reașează calea în forma compactă.
+  useEffect(() => { setCrumbsExpanded(false) }, [currentFolderId])
+
+  const crumbClasses = (crumb, isLast) => {
+    const isRootCrumb = crumb.id === null
+    return [
+      'text-sm',
+      isRootCrumb
+        ? 'shrink-0 px-2.5 py-1 rounded-lg border border-zinc-700 text-zinc-300 hover:border-zinc-500 hover:text-zinc-100'
+        : isLast
+          ? 'text-amber-400 font-semibold'
+          : 'text-zinc-400 hover:text-zinc-100',
+    ].join(' ')
+  }
+
+  const goToCrumb = (id) => {
+    setCrumbsExpanded(false)
+    navigate(id)
+  }
 
   const goHome = useRouterNavigate()
 
@@ -436,44 +462,65 @@ export default function CatalogPage() {
       {/* Header propriu — back + cale clicabilă, înlocuiește TopBar-ul generic
           (redundant pe Catalog). „Catalog" are chenar de buton (nu e folder);
           fiecare element e link direct spre rută. Rămâne vizibil inclusiv în
-          Unfold. Calea trunchiată arată mereu primul și ultimul element.
-          Săgeata e mereu vizibilă: la root duce spre home, altfel un nivel sus. */}
-      <div className="flex-none flex items-center gap-1 px-2 h-12 border-b border-zinc-800">
+          Unfold. Săgeata e mereu vizibilă: la root duce spre home, altfel un
+          nivel sus. Calea: un rând fără scroll (mijlocul „…"), iar „…" expandează
+          tot drumul pe mai multe rânduri. */}
+      <div className="flex-none flex items-start gap-1 px-2 py-2 border-b border-zinc-800">
         <button
           onClick={handleBack}
           className="shrink-0 flex items-center justify-center w-8 h-8 rounded-lg text-zinc-400 active:text-zinc-100 active:bg-zinc-800"
         >
           <ChevronLeft size={20} />
         </button>
-        <div className="flex items-center gap-1.5 overflow-x-auto">
-          {breadcrumbChain.map((crumb, i, arr) => {
-            const isLast = i === arr.length - 1
-            const isRootCrumb = crumb.id === null
-            const isEllipsis = crumb === ELLIPSIS_CRUMB
-            return (
-              <span key={crumb.id ?? `crumb-${i}`} className="flex items-center gap-1.5 shrink-0">
-                {i > 0 && <span className="text-zinc-600 text-sm">|</span>}
-                {isEllipsis ? (
-                  <span className="text-sm text-zinc-500 px-0.5">…</span>
-                ) : (
-                  <button
-                    onClick={() => navigate(crumb.id)}
-                    className={[
-                      'text-sm whitespace-nowrap',
-                      isRootCrumb
-                        ? 'px-2.5 py-1 rounded-lg border border-zinc-700 text-zinc-300 hover:border-zinc-500 hover:text-zinc-100'
-                        : isLast
-                          ? 'text-amber-400 font-semibold'
-                          : 'text-zinc-400 hover:text-zinc-100',
-                    ].join(' ')}
-                  >
+
+        {crumbsExpanded && isCrumbTruncated ? (
+          // Calea completă, pe câte rânduri e nevoie — fiecare element e link.
+          <div className="flex flex-wrap content-start items-center gap-x-1.5 gap-y-1.5 min-h-8 min-w-0 flex-1">
+            {fullCrumbs.map((crumb, i, arr) => {
+              const isLast = i === arr.length - 1
+              return (
+                <span key={crumb.id ?? `full-${i}`} className="flex items-center gap-1.5">
+                  {i > 0 && <span className="text-zinc-600 text-sm">|</span>}
+                  <button onClick={() => goToCrumb(crumb.id)} className={crumbClasses(crumb, isLast)}>
                     {crumb.name}
                   </button>
-                )}
-              </span>
-            )
-          })}
-        </div>
+                </span>
+              )
+            })}
+          </div>
+        ) : (
+          // Un singur rând, fără scroll orizontal; ultimul element se trunchiază.
+          <div className="flex items-center gap-1.5 min-h-8 min-w-0 flex-1 overflow-hidden">
+            {collapsedCrumbs.map((crumb, i, arr) => {
+              const isLast = i === arr.length - 1
+              const isEllipsis = crumb === ELLIPSIS_CRUMB
+              return (
+                <span
+                  key={crumb.id ?? (isEllipsis ? 'ellipsis' : `c-${i}`)}
+                  className={['flex items-center gap-1.5', isLast ? 'min-w-0 flex-1' : 'shrink-0'].join(' ')}
+                >
+                  {i > 0 && <span className="text-zinc-600 text-sm shrink-0">|</span>}
+                  {isEllipsis ? (
+                    <button
+                      onClick={() => setCrumbsExpanded(true)}
+                      className="shrink-0 px-1.5 rounded text-sm text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
+                      aria-label="Arată toată calea"
+                    >
+                      …
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => goToCrumb(crumb.id)}
+                      className={[crumbClasses(crumb, isLast), isLast ? 'min-w-0 truncate' : 'whitespace-nowrap'].join(' ')}
+                    >
+                      {crumb.name}
+                    </button>
+                  )}
+                </span>
+              )
+            })}
+          </div>
+        )}
       </div>
 
       {/* Main content */}
