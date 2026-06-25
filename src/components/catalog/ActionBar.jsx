@@ -35,12 +35,13 @@ export default function ActionBar({ onContinue }) {
         onClick={onContinue}
         disabled={!canContinue}
         className={[
-          'shrink-0 flex items-center justify-center w-10 h-10 rounded-xl',
+          'shrink-0 flex items-center gap-1.5 px-4 h-10 rounded-xl text-sm font-medium',
           canContinue
             ? 'bg-blue-600 text-white active:bg-blue-700'
             : 'bg-zinc-700 text-zinc-500',
         ].join(' ')}
       >
+        {selectionMode === 'move' && `Mută (${count})`}
         <ChevronRight size={20} />
       </button>
     </div>

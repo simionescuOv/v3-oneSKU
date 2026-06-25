@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import {
   Plus, Layers, FolderInput, ChevronRight, ChevronDown, Folder, Tag,
-  Settings, UnfoldVertical, FoldVertical,
+  Settings, UnfoldVertical, FoldVertical, Check,
 } from 'lucide-react'
 import { useCatalogStore } from '../store/useCatalogStore'
 import { useAppStore } from '../store/useAppStore'
@@ -11,7 +11,8 @@ import NodeCard from '../components/catalog/NodeCard'
 import BottomSheet from '../components/catalog/BottomSheet'
 import ActionBar from '../components/catalog/ActionBar'
 import GroupNameSheet from '../components/catalog/GroupNameSheet'
-import MoveDestinationSheet from '../components/catalog/MoveDestinationSheet'
+import DestinationPicker from '../components/catalog/DestinationPicker'
+import SubgroupSheet from '../components/catalog/SubgroupSheet'
 
 const nodeLabel = (node) => node.name
 
@@ -96,14 +97,28 @@ function SearchGroup({ group, depth, onTap }) {
   )
 }
 
-function FullTree({ parentId, depth, getChildren }) {
+// `selectable` activează checkbox-urile (SPEC_MutareCrossFolder §3.2 — mod
+// selecție Mutare cross-folder). Folderele temporare sunt deja filtrate de
+// `getChildren`, deci nu apar aici.
+function FullTree({ parentId, depth, getChildren, selectable, selectedIds, onToggle }) {
   const children = getChildren(parentId)
   return children.map((node) => (
     <div key={node.id}>
       <div
         className="flex items-center gap-2 py-2.5 text-sm border-b border-zinc-900"
         style={{ paddingLeft: 16 + depth * 16, paddingRight: 16 }}
+        onClick={selectable ? () => onToggle(node.id) : undefined}
       >
+        {selectable && (
+          <span
+            className={[
+              'shrink-0 flex items-center justify-center w-5 h-5 rounded-full border',
+              selectedIds.has(node.id) ? 'bg-blue-600 border-blue-600 text-white' : 'border-zinc-600 text-transparent',
+            ].join(' ')}
+          >
+            <Check size={14} />
+          </span>
+        )}
         {node.type === 'folder'
           ? <Folder size={16} className="text-amber-400 shrink-0" />
           : <Tag size={16} className="text-blue-400 shrink-0" />
@@ -114,7 +129,14 @@ function FullTree({ parentId, depth, getChildren }) {
         )}
       </div>
       {node.type === 'folder' && (
-        <FullTree parentId={node.id} depth={depth + 1} getChildren={getChildren} />
+        <FullTree
+          parentId={node.id}
+          depth={depth + 1}
+          getChildren={getChildren}
+          selectable={selectable}
+          selectedIds={selectedIds}
+          onToggle={onToggle}
+        />
       )}
     </div>
   ))
@@ -137,6 +159,11 @@ export default function CatalogPage() {
   const enterSelectionMode = useCatalogStore((s) => s.enterSelectionMode)
   const toggleNodeSelection = useCatalogStore((s) => s.toggleNodeSelection)
   const clearSelection = useCatalogStore((s) => s.clearSelection)
+  const moveNodes = useCatalogStore((s) => s.moveNodes)
+  const createTempFolder = useCatalogStore((s) => s.createTempFolder)
+  const dissolveTempFolder = useCatalogStore((s) => s.dissolveTempFolder)
+  const promoteTempFolder = useCatalogStore((s) => s.promoteTempFolder)
+  const cleanupTempFolders = useCatalogStore((s) => s.cleanupTempFolders)
 
   const searchQuery = useAppStore((s) => s.searchQuery)
   const setSearchPlaceholder = useAppStore((s) => s.setSearchPlaceholder)
@@ -147,7 +174,12 @@ export default function CatalogPage() {
   const [toast, setToast] = useState(null)
   const [configOpen, setConfigOpen] = useState(false)
   const [groupSheetOpen, setGroupSheetOpen] = useState(false)
-  const [moveSheetOpen, setMoveSheetOpen] = useState(false)
+  // Mutare cross-folder (SPEC_MutareCrossFolder §3.3): temp folder + cele
+  // două sheet-uri ale fluxului (destinație → subfolder opțional).
+  const [tempFolderId, setTempFolderId] = useState(null)
+  const [pendingMoveCount, setPendingMoveCount] = useState(0)
+  const [destinationPickerOpen, setDestinationPickerOpen] = useState(false)
+  const [subgroupSheetOpen, setSubgroupSheetOpen] = useState(false)
   const toastTimer = useRef(null)
   const isPopRef = useRef(false)
   const selectionModeRef = useRef(selectionMode)
@@ -161,6 +193,11 @@ export default function CatalogPage() {
   useEffect(() => {
     setSearchPlaceholder('Caută categorie sau folder...')
   }, [setSearchPlaceholder])
+
+  // ── Cleanup foldere temporare orfane (SPEC_MutareCrossFolder §2.4, §3.6) ──────
+  useEffect(() => {
+    cleanupTempFolders()
+  }, [cleanupTempFolders])
 
   // ── Back gesture (Android/browser) → exit selection sau navigate up ──────────
   useEffect(() => {
@@ -253,10 +290,50 @@ export default function CatalogPage() {
       : currentChildren
   }, [selectionMode, isSearching, currentChildren, searchQuery])
 
+  // ── Mutare cross-folder — pas „Mută (N)" (SPEC_MutareCrossFolder §3.3) ────────
   const handleContinue = useCallback(() => {
-    if (selectionMode === 'group') setGroupSheetOpen(true)
-    else if (selectionMode === 'move') setMoveSheetOpen(true)
-  }, [selectionMode])
+    if (selectionMode === 'group') {
+      setGroupSheetOpen(true)
+      return
+    }
+    if (selectionMode === 'move') {
+      const ids = [...selectedNodeIds]
+      const tempId = createTempFolder()
+      moveNodes(ids, tempId)
+      setTempFolderId(tempId)
+      setPendingMoveCount(ids.length)
+      setDestinationPickerOpen(true)
+    }
+  }, [selectionMode, selectedNodeIds, createTempFolder, moveNodes])
+
+  const finalizeMove = useCallback((subfolderName) => {
+    setDestinationPickerOpen(false)
+    setSubgroupSheetOpen(false)
+    setTempFolderId(null)
+    clearSelection()
+    const base = `${pendingMoveCount} ${pendingMoveCount === 1 ? 'element mutat' : 'elemente mutate'}`
+    showToast(subfolderName ? `${base} în subfolderul „${subfolderName}"` : base)
+  }, [pendingMoveCount, clearSelection, showToast])
+
+  const handleDestinationPicked = useCallback((destinationId) => {
+    moveNodes([tempFolderId], destinationId)
+    setDestinationPickerOpen(false)
+    setSubgroupSheetOpen(true)
+  }, [tempFolderId, moveNodes])
+
+  const handleSubgroupNo = useCallback(() => {
+    dissolveTempFolder(tempFolderId)
+    finalizeMove(null)
+  }, [tempFolderId, dissolveTempFolder, finalizeMove])
+
+  const handleSubgroupYes = useCallback((name) => {
+    const ok = promoteTempFolder(tempFolderId, name)
+    if (!ok) {
+      showToast(`Există deja „${name}"`)
+      return
+    }
+    finalizeMove(name.trim())
+  }, [tempFolderId, promoteTempFolder, finalizeMove, showToast])
 
   // ── Context menu — Config (Grupare / Mutare) ─────────────────────────────────
   const handleGroup = useCallback(() => {
@@ -275,7 +352,8 @@ export default function CatalogPage() {
 
   // Grupare: doar la rădăcină, cu ≥2 elemente negrupate. Mutare: nivel cu ≥1 element.
   const groupDisabled = !isRoot || currentChildren.length < 2
-  const moveDisabled = currentChildren.length < 1
+  // Mutarea e cross-folder (Unfold) — verificăm tot arborele, nu doar nivelul curent.
+  const moveDisabled = nodes.filter((n) => !n.isTemp).length < 1
 
   const configMenuItems = [
     { label: 'Grupare', icon: <Layers size={18} />, action: handleGroup, disabled: groupDisabled },
@@ -318,7 +396,14 @@ export default function CatalogPage() {
       {/* Main content */}
       {treeExpanded ? (
         <div className="flex-1 overflow-y-auto">
-          <FullTree parentId={null} depth={0} getChildren={getChildren} />
+          <FullTree
+            parentId={null}
+            depth={0}
+            getChildren={getChildren}
+            selectable={selectionMode === 'move'}
+            selectedIds={selectedNodeIds}
+            onToggle={toggleNodeSelection}
+          />
         </div>
       ) : selectionMode ? (
         <div className="flex-1 overflow-y-auto divide-y divide-zinc-800">
@@ -437,10 +522,17 @@ export default function CatalogPage() {
         onClose={() => setGroupSheetOpen(false)}
         showToast={showToast}
       />
-      <MoveDestinationSheet
-        open={moveSheetOpen}
-        onClose={() => setMoveSheetOpen(false)}
-        showToast={showToast}
+      <DestinationPicker
+        open={destinationPickerOpen}
+        onClose={() => setDestinationPickerOpen(false)}
+        tempFolderId={tempFolderId}
+        onPicked={handleDestinationPicked}
+      />
+      <SubgroupSheet
+        open={subgroupSheetOpen}
+        onClose={() => setSubgroupSheetOpen(false)}
+        onConfirmNo={handleSubgroupNo}
+        onConfirmYes={handleSubgroupYes}
       />
     </div>
   )
