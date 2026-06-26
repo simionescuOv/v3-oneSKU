@@ -17,6 +17,8 @@ import SubgroupSheet from '../components/catalog/SubgroupSheet'
 
 const nodeLabel = (node) => node.name
 const ELLIPSIS_CRUMB = { id: '__ellipsis__', name: '…' }
+// Dezactivat temporar — notificările de succes după creare/mutare (erorile rămân vizibile).
+const SHOW_ACTION_TOASTS = false
 
 function buildSearchTree(matches, getAncestorFolders) {
   const root = { node: null, children: [], categories: [], matched: false }
@@ -217,6 +219,7 @@ export default function CatalogPage() {
   const isPopRef = useRef(false)
   const selectionModeRef = useRef(selectionMode)
   selectionModeRef.current = selectionMode
+  const destinationIdRef = useRef(null)
 
   const currentChildren = getChildren(currentFolderId)
   const isRoot = currentFolderId === null
@@ -310,7 +313,7 @@ export default function CatalogPage() {
     const ok = addCategory(name, currentFolderId)
     if (!ok) showToast(`Există deja „${name}"`)
     else {
-      showToast(`„${name}" adăugată`)
+      if (SHOW_ACTION_TOASTS) showToast(`„${name}" adăugată`)
       clearSearch()
     }
   }, [searchQuery, nodes, addCategory, currentFolderId, clearSearch, showToast])
@@ -339,16 +342,30 @@ export default function CatalogPage() {
     }
   }, [selectionMode, selectedNodeIds, createTempFolder, moveNodes])
 
-  const finalizeMove = useCallback((subfolderName) => {
+  // După o mutare, în Unfold rămâne deplasat doar drumul către folderul
+  // actualizat (el + părinții lui) — restul folderelor se pliază, ca să se
+  // vadă imediat unde au ajuns elementele, fără zgomot vizual.
+  const collapseAllExcept = useCallback((updatedFolderId) => {
+    if (!updatedFolderId) return
+    const keepOpen = new Set([updatedFolderId, ...getAncestorFolders(updatedFolderId).map((f) => f.id)])
+    const allFolderIds = nodes.filter((n) => n.type === 'folder' && !n.isTemp).map((n) => n.id)
+    setCollapsedFolderIds(new Set(allFolderIds.filter((id) => !keepOpen.has(id))))
+  }, [nodes, getAncestorFolders])
+
+  const finalizeMove = useCallback((updatedFolderId, subfolderName) => {
     setDestinationPickerOpen(false)
     setSubgroupSheetOpen(false)
     setTempFolderId(null)
     clearSelection()
-    const base = `${pendingMoveCount} ${pendingMoveCount === 1 ? 'element mutat' : 'elemente mutate'}`
-    showToast(subfolderName ? `${base} în subfolderul „${subfolderName}"` : base)
-  }, [pendingMoveCount, clearSelection, showToast])
+    collapseAllExcept(updatedFolderId)
+    if (SHOW_ACTION_TOASTS) {
+      const base = `${pendingMoveCount} ${pendingMoveCount === 1 ? 'element mutat' : 'elemente mutate'}`
+      showToast(subfolderName ? `${base} în subfolderul „${subfolderName}"` : base)
+    }
+  }, [pendingMoveCount, clearSelection, showToast, collapseAllExcept])
 
   const handleDestinationPicked = useCallback((destinationId) => {
+    destinationIdRef.current = destinationId
     moveNodes([tempFolderId], destinationId)
     setDestinationPickerOpen(false)
     setSubgroupSheetOpen(true)
@@ -356,7 +373,7 @@ export default function CatalogPage() {
 
   const handleSubgroupNo = useCallback(() => {
     dissolveTempFolder(tempFolderId)
-    finalizeMove(null)
+    finalizeMove(destinationIdRef.current, null)
   }, [tempFolderId, dissolveTempFolder, finalizeMove])
 
   const handleSubgroupYes = useCallback((name) => {
@@ -365,7 +382,7 @@ export default function CatalogPage() {
       showToast(`Există deja „${name}"`)
       return
     }
-    finalizeMove(name.trim())
+    finalizeMove(tempFolderId, name.trim())
   }, [tempFolderId, promoteTempFolder, finalizeMove, showToast])
 
   // ── Context menu — Config (Grupare / Mutare) ─────────────────────────────────
@@ -447,7 +464,9 @@ export default function CatalogPage() {
     return [
       'text-sm',
       isRootCrumb
-        ? 'shrink-0 px-2.5 py-1 rounded-lg border border-zinc-700 text-zinc-300 hover:border-zinc-500 hover:text-zinc-100'
+        ? isLast
+          ? 'shrink-0 px-2.5 py-1 rounded-lg border border-red-800/60 text-red-800 font-semibold'
+          : 'shrink-0 px-2.5 py-1 rounded-lg border border-zinc-700 text-zinc-300 hover:border-zinc-500 hover:text-zinc-100'
         : isLast
           ? 'text-amber-400 font-semibold'
           : 'text-zinc-400 hover:text-zinc-100',
@@ -677,6 +696,7 @@ export default function CatalogPage() {
         open={groupSheetOpen}
         onClose={() => setGroupSheetOpen(false)}
         showToast={showToast}
+        suppressSuccessToast={!SHOW_ACTION_TOASTS}
       />
       <DestinationPicker
         open={destinationPickerOpen}
