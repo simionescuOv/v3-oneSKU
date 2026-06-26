@@ -302,6 +302,17 @@ export default function CatalogPage() {
 
   const showCreate = !selectionMode && pickerShowCreate
 
+  // Când arborele se actualizează (creare, mutare, grupare), în Unfold rămâne
+  // deschis doar drumul către folderul actualizat (el + părinții lui) —
+  // restul folderelor se pliază, ca să se vadă imediat unde s-a produs
+  // schimbarea, fără zgomot vizual.
+  const collapseAllExcept = useCallback((updatedFolderId) => {
+    if (!updatedFolderId) return
+    const keepOpen = new Set([updatedFolderId, ...getAncestorFolders(updatedFolderId).map((f) => f.id)])
+    const allFolderIds = nodes.filter((n) => n.type === 'folder' && !n.isTemp).map((n) => n.id)
+    setCollapsedFolderIds(new Set(allFolderIds.filter((id) => !keepOpen.has(id))))
+  }, [nodes, getAncestorFolders])
+
   const handleCreateFromSearch = useCallback(() => {
     const name = searchQuery.trim()
     if (!name) return
@@ -314,9 +325,10 @@ export default function CatalogPage() {
     if (!ok) showToast(`Există deja „${name}"`)
     else {
       if (SHOW_ACTION_TOASTS) showToast(`„${name}" adăugată`)
+      collapseAllExcept(currentFolderId)
       clearSearch()
     }
-  }, [searchQuery, nodes, addCategory, currentFolderId, clearSearch, showToast])
+  }, [searchQuery, nodes, addCategory, currentFolderId, clearSearch, showToast, collapseAllExcept])
 
   // ── Selection mode ───────────────────────────────────────────────────────────
   const selectionItems = useMemo(() => {
@@ -341,16 +353,6 @@ export default function CatalogPage() {
       setDestinationPickerOpen(true)
     }
   }, [selectionMode, selectedNodeIds, createTempFolder, moveNodes])
-
-  // După o mutare, în Unfold rămâne deplasat doar drumul către folderul
-  // actualizat (el + părinții lui) — restul folderelor se pliază, ca să se
-  // vadă imediat unde au ajuns elementele, fără zgomot vizual.
-  const collapseAllExcept = useCallback((updatedFolderId) => {
-    if (!updatedFolderId) return
-    const keepOpen = new Set([updatedFolderId, ...getAncestorFolders(updatedFolderId).map((f) => f.id)])
-    const allFolderIds = nodes.filter((n) => n.type === 'folder' && !n.isTemp).map((n) => n.id)
-    setCollapsedFolderIds(new Set(allFolderIds.filter((id) => !keepOpen.has(id))))
-  }, [nodes, getAncestorFolders])
 
   const finalizeMove = useCallback((updatedFolderId, subfolderName) => {
     setDestinationPickerOpen(false)
@@ -697,6 +699,7 @@ export default function CatalogPage() {
         onClose={() => setGroupSheetOpen(false)}
         showToast={showToast}
         suppressSuccessToast={!SHOW_ACTION_TOASTS}
+        onGrouped={collapseAllExcept}
       />
       <DestinationPicker
         open={destinationPickerOpen}

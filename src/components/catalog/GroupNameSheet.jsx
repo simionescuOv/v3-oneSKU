@@ -5,7 +5,7 @@ import { useAppStore } from '../../store/useAppStore'
 
 // Bottom-sheet FĂRĂ căutare → BottomBar se ascunde.
 // Câmpul de nume nu e căutare (e ca un input de redenumire), deci poate sta în sheet.
-export default function GroupNameSheet({ open, onClose, showToast, suppressSuccessToast }) {
+export default function GroupNameSheet({ open, onClose, showToast, suppressSuccessToast, onGrouped }) {
   const selectedNodeIds = useCatalogStore((s) => s.selectedNodeIds)
   const groupNodes = useCatalogStore((s) => s.groupNodes)
   const clearSelection = useCatalogStore((s) => s.clearSelection)
@@ -41,6 +41,10 @@ export default function GroupNameSheet({ open, onClose, showToast, suppressSucce
       return
     }
     if (!suppressSuccessToast) showToast(`Folder „${trimmed}" creat cu ${ids.length} elemente`)
+    const folder = useCatalogStore.getState().nodes.find(
+      (n) => n.type === 'folder' && n.parentId === null && n.name === trimmed
+    )
+    onGrouped?.(folder?.id)
     onClose()
     clearSelection()
   }
