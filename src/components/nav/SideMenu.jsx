@@ -46,7 +46,7 @@ export default function SideMenu() {
                 key={path}
                 onClick={() => handleNav(path)}
                 className={[
-                  'w-full flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-red-800',
+                  'w-full flex items-center gap-4 px-5 py-3.5 text-sm font-medium text-blue-400',
                   'transition-colors',
                   active ? 'bg-zinc-800' : 'hover:bg-zinc-800/60',
                 ].join(' ')}

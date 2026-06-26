@@ -465,7 +465,7 @@ export default function CatalogPage() {
       'text-sm',
       isRootCrumb
         ? isLast
-          ? 'shrink-0 px-2.5 py-1 rounded-lg border border-red-800/60 text-red-800 font-semibold'
+          ? 'shrink-0 px-2.5 py-1 rounded-lg border border-blue-400/60 text-blue-400 font-semibold'
           : 'shrink-0 px-2.5 py-1 rounded-lg border border-zinc-700 text-zinc-300 hover:border-zinc-500 hover:text-zinc-100'
         : isLast
           ? 'text-amber-400 font-semibold'
