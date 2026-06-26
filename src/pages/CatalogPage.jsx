@@ -392,14 +392,18 @@ export default function CatalogPage() {
     closeCatalogMenu()
   }, [toggleTreeExpanded, closeCatalogMenu])
 
+  // Tap pe un folder în Unfold îl pliază/depliază ȚI marchează ca „locul curent" —
+  // cărarea din header trebuie să reflecte exact folderul pe care ai tăut, oriunde
+  // s-ar afla el în arbore (vezi feedback: al 6-lea folder din cale nu se evidenția).
   const toggleFold = useCallback((id) => {
+    navigate(id)
     setCollapsedFolderIds((prev) => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id)
       else next.add(id)
       return next
     })
-  }, [])
+  }, [navigate])
 
   // Căutarea în Unfold trebuie să filtreze exact ca în modul normal (același
   // motor — usePicker/searchMatches): păstrăm doar rezultatele + lanțul lor
@@ -451,11 +455,12 @@ export default function CatalogPage() {
 
   const goHome = useRouterNavigate()
 
+  // Săgeata duce direct la home, indiferent de adâncime — nu se mai întoarce
+  // pas cu pas pe cărare (pentru asta există linkurile din breadcrumb).
   const handleBack = useCallback(() => {
     if (selectionMode) clearSelection()
-    else if (!isRoot) navigateUp()
     else goHome('/')
-  }, [selectionMode, isRoot, clearSelection, navigateUp, goHome])
+  }, [selectionMode, clearSelection, goHome])
 
   return (
     <div className="flex flex-col h-full">

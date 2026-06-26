@@ -1,5 +1,5 @@
 // Cuvânt generat la acest push, pentru verificarea versiunii deployed pe Vercel.
-const BUILD_WORD = 'felinar'
+const BUILD_WORD = 'orhidee'
 
 export default function HomePage() {
   return (
