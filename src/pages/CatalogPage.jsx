@@ -108,12 +108,15 @@ const EMPTY_SET = new Set()
 // folderul) au target-uri de tap separate, ca să nu se interfereze.
 // `visibleIds`, dacă e setat (căutare activă), restrânge nodurile afișate la
 // rezultate + lanțul lor de foldere-părinte (foldarea e ignorată în acest caz).
-function FullTree({ parentId, depth, getChildren, selectable, selectedIds, onToggle, collapsedIds, onToggleFold, visibleIds }) {
+function FullTree({ parentId, depth, getChildren, selectable, selectedIds, onToggle, collapsedIds, onToggleFold, visibleIds, currentFolderId }) {
   let children = getChildren(parentId)
   if (visibleIds) children = children.filter((n) => visibleIds.has(n.id))
   return children.map((node) => {
     const isFolder = node.type === 'folder'
     const isCollapsed = isFolder && !visibleIds && collapsedIds.has(node.id)
+    // Echivalentul folderului curent (ultimul, evidențiat în breadcrumb) trebuie
+    // colorat la fel și aici, ca să se vadă unde te afli direct în arbore.
+    const isCurrent = isFolder && node.id === currentFolderId
     return (
       <div key={node.id}>
         <div
@@ -143,7 +146,9 @@ function FullTree({ parentId, depth, getChildren, selectable, selectedIds, onTog
               ? <Folder size={16} className="text-amber-400 shrink-0" />
               : <Tag size={16} className="text-blue-400 shrink-0" />
             }
-            <span className="flex-1 text-zinc-100 truncate">{node.name}</span>
+            <span className={isCurrent ? 'flex-1 text-amber-400 font-semibold truncate' : 'flex-1 text-zinc-100 truncate'}>
+              {node.name}
+            </span>
             {node.type === 'category' && (
               <span className="text-xs text-zinc-500 shrink-0">{node.products ?? 0} produse</span>
             )}
@@ -160,6 +165,7 @@ function FullTree({ parentId, depth, getChildren, selectable, selectedIds, onTog
             collapsedIds={collapsedIds}
             onToggleFold={onToggleFold}
             visibleIds={visibleIds}
+            currentFolderId={currentFolderId}
           />
         )}
       </div>
@@ -544,6 +550,7 @@ export default function CatalogPage() {
             collapsedIds={collapsedFolderIds}
             onToggleFold={toggleFold}
             visibleIds={searchVisibleIds}
+            currentFolderId={currentFolderId}
           />
           {isSearching && searchVisibleIds?.size === 0 && (
             <div className="px-4 py-8 text-center text-sm text-zinc-500">
