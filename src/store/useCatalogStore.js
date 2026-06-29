@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { mockNodes } from '../mock/products'
+import { mockNodes, mockProducts, mockCategoryAttributes, mockAttributeOptions } from '../mock/products'
 import { normalize } from '../lib/search'
 
 // Numele oricărui nod (folder SAU categorie) e unic în tot catalogul tenantului,
@@ -29,6 +29,10 @@ function getDescendantIds(nodes, id) {
 export const useCatalogStore = create((set, get) => ({
   nodes: [...mockNodes],
   trash: [],
+  // ── Produse + schemă de atribute per categorie (SPEC_DatabaseSchema_v2 §4-6) ─
+  products: [...mockProducts],
+  categoryAttributes: [...mockCategoryAttributes],
+  attributeOptions: [...mockAttributeOptions],
   currentFolderId: null,
   treeExpanded: false,
   toggleTreeExpanded: () => set((s) => ({ treeExpanded: !s.treeExpanded })),
@@ -266,5 +270,81 @@ export const useCatalogStore = create((set, get) => ({
           .map((n) => tempIds.has(n.parentId) ? { ...n, parentId: null } : n),
       }
     })
+  },
+
+  // ── Produse (pagina categoriei) ──────────────────────────────────────────────
+  getProductsByCategory: (categoryId) => {
+    const { products } = get()
+    return products.filter((p) => p.categoryId === categoryId && !p.deletedAt)
+  },
+
+  // Numele produsului e unic în interiorul categoriei (nu global ca nodurile).
+  addProduct: (categoryId, name, attributes = {}, listPrice = null) => {
+    const { products } = get()
+    const trimmed = name.trim()
+    if (!trimmed) return false
+    const exists = products.some(
+      (p) => p.categoryId === categoryId && !p.deletedAt && normalize(p.name) === normalize(trimmed)
+    )
+    if (exists) return false
+    const newProduct = {
+      id: genId('prod'),
+      categoryId,
+      name: trimmed,
+      attributes,
+      listPrice: listPrice === '' || listPrice == null ? null : Number(listPrice),
+    }
+    set({ products: [...products, newProduct] })
+    return true
+  },
+
+  // ── Schema de atribute a categoriei ──────────────────────────────────────────
+  getCategoryAttributes: (categoryId) => {
+    const { categoryAttributes } = get()
+    return categoryAttributes
+      .filter((a) => a.categoryId === categoryId)
+      .sort((a, b) => a.position - b.position)
+  },
+
+  getAttributeOptions: (attributeId) => {
+    const { attributeOptions } = get()
+    return attributeOptions
+      .filter((o) => o.attributeId === attributeId)
+      .sort((a, b) => a.position - b.position)
+  },
+
+  // Nume atribut unic în categorie (SPEC_DatabaseSchema_v2 §4, uq_category_attributes_name).
+  addAttribute: (categoryId, name, type) => {
+    const { categoryAttributes } = get()
+    const trimmed = name.trim()
+    if (!trimmed || !['text', 'single_choice'].includes(type)) return false
+    const siblings = categoryAttributes.filter((a) => a.categoryId === categoryId)
+    if (siblings.some((a) => normalize(a.name) === normalize(trimmed))) return false
+    const newAttr = {
+      id: genId('attr'),
+      categoryId,
+      name: trimmed,
+      type,
+      position: siblings.length,
+    }
+    set({ categoryAttributes: [...categoryAttributes, newAttr] })
+    return true
+  },
+
+  // Valoare unică în cadrul atributului (SPEC_DatabaseSchema_v2 §5, uq_attribute_options_value).
+  addAttributeOption: (attributeId, value) => {
+    const { attributeOptions } = get()
+    const trimmed = value.trim()
+    if (!trimmed) return false
+    const siblings = attributeOptions.filter((o) => o.attributeId === attributeId)
+    if (siblings.some((o) => normalize(o.value) === normalize(trimmed))) return false
+    const newOption = {
+      id: genId('opt'),
+      attributeId,
+      value: trimmed,
+      position: siblings.length,
+    }
+    set({ attributeOptions: [...attributeOptions, newOption] })
+    return true
   },
 }))

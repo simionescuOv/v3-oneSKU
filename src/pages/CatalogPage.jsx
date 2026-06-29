@@ -221,6 +221,7 @@ export default function CatalogPage() {
   const selectionModeRef = useRef(selectionMode)
   selectionModeRef.current = selectionMode
   const destinationIdRef = useRef(null)
+  const goHome = useRouterNavigate()
 
   const currentChildren = getChildren(currentFolderId)
   const isSearching = searchQuery.trim().length > 0
@@ -271,9 +272,9 @@ export default function CatalogPage() {
     if (node.type === 'folder') {
       navigate(node.id)
     } else {
-      showToast(`Produse din „${node.name}" — în curând`)
+      goHome(`/catalog/category/${node.id}`)
     }
-  }, [navigate, showToast])
+  }, [navigate, goHome])
 
   // ── Search (= unicul mecanism de adăugare categorie) ─────────────────────────
   // Caută atât în categorii, cât și în foldere (ex: „i” → folderul „Îmbrăcăminte”)
@@ -462,8 +463,6 @@ export default function CatalogPage() {
     setCrumbsExpanded(false)
     navigate(id)
   }
-
-  const goHome = useRouterNavigate()
 
   // Săgeata duce direct la home, indiferent de adâncime — nu se mai întoarce
   // pas cu pas pe cărare (pentru asta există linkurile din breadcrumb).

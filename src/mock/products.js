@@ -1,14 +1,36 @@
-export const mockCategories = [
-  { id: 'cat-1', name: 'Electronice', product_count: 12 },
-  { id: 'cat-2', name: 'Îmbrăcăminte', product_count: 34 },
-  { id: 'cat-3', name: 'Accesorii', product_count: 9 },
+// ── Schema de atribute per categorie (SPEC_DatabaseSchema_v2 §4) ──────────────
+// Cheia stabilă e `id`-ul atributului; `products.attributes` se cheiază după el,
+// niciodată după `name` (care e editabil) — vezi SPEC §0.2.
+export const mockCategoryAttributes = [
+  // Telefoane (c-4)
+  { id: 'attr-tel-culoare', categoryId: 'c-4', name: 'Culoare', type: 'single_choice', position: 0 },
+  { id: 'attr-tel-memorie', categoryId: 'c-4', name: 'Memorie', type: 'single_choice', position: 1 },
+  { id: 'attr-tel-model',   categoryId: 'c-4', name: 'Model',   type: 'text',          position: 2 },
+  // Tricouri (c-6)
+  { id: 'attr-tri-marime',  categoryId: 'c-6', name: 'Mărime',  type: 'single_choice', position: 0 },
 ]
 
+// ── Opțiunile atributelor single_choice (SPEC_DatabaseSchema_v2 §5) ───────────
+export const mockAttributeOptions = [
+  { id: 'opt-cul-negru',    attributeId: 'attr-tel-culoare', value: 'Negru',    position: 0 },
+  { id: 'opt-cul-alb',      attributeId: 'attr-tel-culoare', value: 'Alb',      position: 1 },
+  { id: 'opt-cul-albastru', attributeId: 'attr-tel-culoare', value: 'Albastru', position: 2 },
+  { id: 'opt-mem-64',       attributeId: 'attr-tel-memorie', value: '64GB',     position: 0 },
+  { id: 'opt-mem-128',      attributeId: 'attr-tel-memorie', value: '128GB',    position: 1 },
+  { id: 'opt-mem-256',      attributeId: 'attr-tel-memorie', value: '256GB',    position: 2 },
+  { id: 'opt-mar-s',        attributeId: 'attr-tri-marime',  value: 'S',        position: 0 },
+  { id: 'opt-mar-m',        attributeId: 'attr-tri-marime',  value: 'M',        position: 1 },
+  { id: 'opt-mar-l',        attributeId: 'attr-tri-marime',  value: 'L',        position: 2 },
+]
+
+// ── Produse (SPEC_DatabaseSchema_v2 §6) ───────────────────────────────────────
+// `attributes` cheiat după id de atribut; `listPrice` = preț de listă opțional.
 export const mockProducts = [
-  { id: 'prod-1', name: 'Căști Bluetooth Pro', category_id: 'cat-1', category_name: 'Electronice', price: 249, sku_count: 1 },
-  { id: 'prod-2', name: 'Geacă de Iarnă Slim', category_id: 'cat-2', category_name: 'Îmbrăcăminte', price: 389, sku_count: 4 },
-  { id: 'prod-3', name: 'Tricou Basic', category_id: 'cat-2', category_name: 'Îmbrăcăminte', price: 59, sku_count: 3 },
-  { id: 'prod-4', name: 'Husă telefon universală', category_id: 'cat-3', category_name: 'Accesorii', price: 29, sku_count: 2 },
+  { id: 'prod-1', categoryId: 'c-4', name: 'iPhone 13', attributes: { 'attr-tel-culoare': 'Negru', 'attr-tel-memorie': '128GB', 'attr-tel-model': 'A2633' }, listPrice: 3499 },
+  { id: 'prod-2', categoryId: 'c-4', name: 'Samsung Galaxy S23', attributes: { 'attr-tel-culoare': 'Albastru', 'attr-tel-memorie': '256GB', 'attr-tel-model': 'SM-S911' }, listPrice: 3999 },
+  { id: 'prod-3', categoryId: 'c-4', name: 'Xiaomi Redmi Note 12', attributes: { 'attr-tel-culoare': 'Alb', 'attr-tel-memorie': '64GB' }, listPrice: 1099 },
+  { id: 'prod-4', categoryId: 'c-6', name: 'Tricou Basic Alb', attributes: { 'attr-tri-marime': 'M' }, listPrice: 59 },
+  { id: 'prod-5', categoryId: 'c-6', name: 'Tricou Premium Negru', attributes: { 'attr-tri-marime': 'L' }, listPrice: 89 },
 ]
 
 // Node tree for CatalogPage (folder + category hierarchy)

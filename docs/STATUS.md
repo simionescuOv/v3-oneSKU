@@ -68,11 +68,19 @@ src/
 ### Catalog
 - [ ] Flux creare/editare categorii
 - [ ] Grupare categorii în foldere (arbore ierarhic)
-- [ ] Schema categoriei (atribute dinamice)
-- [ ] Adăugare produs (individual)
+- [x] Schema categoriei (atribute dinamice: text / single_choice + opțiuni)
+- [x] Adăugare produs (individual) — formular generat din schemă, `list_price` opțional
 - [ ] Import produse din xlsx (SheetJS)
 - [ ] Filtrare produse (OR per atribut, AND între atribute)
 - [ ] Tag Vocabulary global (Tag Groups + Tag Values)
+
+### Pagina categoriei (Faza 1 MVP) — implementat
+- Rută `/catalog/category/:categoryId` → `CategoryPage` (tap pe categorie deschide pagina)
+- Listă produse + căutare contextuală (usePicker), header cu breadcrumb + rezumat
+- Schema de atribute (`SchemaSheet`): listă atribute, adăugare atribut, gestionare opțiuni
+- Adăugare produs (`ProductFormSheet`): câmpuri generate din schemă + preț de listă opțional
+- Ștergere categorie (din meniul contextual al paginii, soft-delete reutilizat din store)
+- `BottomBar` generalizat la „familia /catalog" pentru meniul contextual
 
 ### StockHub
 - [ ] Pagina unui Space (tab Stoc + tab Flux)

@@ -3,6 +3,7 @@ import AppShell from './components/shell/AppShell'
 import HomePage from './pages/HomePage'
 import AccountPage from './pages/AccountPage'
 import CatalogPage from './pages/CatalogPage'
+import CategoryPage from './pages/CategoryPage'
 import StockHubPage from './pages/StockHubPage'
 import StorefrontPage from './pages/StorefrontPage'
 import DashboardPage from './pages/DashboardPage'
@@ -16,6 +17,7 @@ export default function App() {
           <Route index element={<HomePage />} />
           <Route path="account"    element={<AccountPage />} />
           <Route path="catalog"    element={<CatalogPage />} />
+          <Route path="catalog/category/:categoryId" element={<CategoryPage />} />
           <Route path="stockhub"   element={<StockHubPage />} />
           <Route path="storefront" element={<StorefrontPage />} />
           <Route path="dashboard"  element={<DashboardPage />} />
