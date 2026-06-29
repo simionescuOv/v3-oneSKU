@@ -37,8 +37,10 @@ export const useCatalogStore = create((set, get) => ({
   selectionMode: null,          // null | 'group' | 'move'
   selectedNodeIds: new Set(),   // Set<id>
 
+  // „Mutare" și „Grupare" pornesc la nivelul curent (fold); utilizatorul poate
+  // activa manual Unfold dacă vrea să aleagă elemente din tot catalogul.
   enterSelectionMode: (mode) =>
-    set({ selectionMode: mode, selectedNodeIds: new Set(), treeExpanded: false }),
+    set({ selectionMode: mode, selectedNodeIds: new Set() }),
 
   toggleNodeSelection: (id) =>
     set((s) => {
@@ -77,7 +79,8 @@ export const useCatalogStore = create((set, get) => ({
 
   getChildren: (parentId) => {
     const { nodes } = get()
-    const children = nodes.filter((n) => n.parentId === parentId)
+    // Folderele temporare (SPEC_MutareCrossFolder §1.1) nu sunt niciodată vizibile.
+    const children = nodes.filter((n) => n.parentId === parentId && !n.isTemp)
     // folders first, then categories
     return [
       ...children.filter((n) => n.type === 'folder'),
@@ -94,7 +97,7 @@ export const useCatalogStore = create((set, get) => ({
     let parentId = node.parentId
     while (parentId) {
       const parent = nodes.find((n) => n.id === parentId)
-      if (!parent) break
+      if (!parent || parent.isTemp) break
       chain.unshift(parent)
       parentId = parent.parentId
     }
@@ -217,6 +220,51 @@ export const useCatalogStore = create((set, get) => ({
     const { nodes } = get()
     const excluded = getDescendantIds(nodes, nodeId)
     excluded.add(nodeId)
-    return nodes.filter((n) => n.type === 'folder' && !excluded.has(n.id))
+    return nodes.filter((n) => n.type === 'folder' && !n.isTemp && !excluded.has(n.id))
+  },
+
+  // ── Mutare cross-folder (Unfold mode) — SPEC_MutareCrossFolder §2-3 ──
+  // Echivalentul client-side al RPC-urilor create/dissolve/promote/cleanup_temp_folder.
+  createTempFolder: () => {
+    const tempId = genId('temp')
+    const tempNode = { id: tempId, type: 'folder', name: tempId, parentId: null, isTemp: true }
+    set((s) => ({ nodes: [...s.nodes, tempNode] }))
+    return tempId
+  },
+
+  dissolveTempFolder: (tempFolderId) => {
+    set((s) => {
+      const temp = s.nodes.find((n) => n.id === tempFolderId && n.isTemp)
+      if (!temp) return {}
+      const parentId = temp.parentId
+      return {
+        nodes: s.nodes
+          .filter((n) => n.id !== tempFolderId)
+          .map((n) => n.parentId === tempFolderId ? { ...n, parentId } : n),
+      }
+    })
+  },
+
+  promoteTempFolder: (tempFolderId, newName) => {
+    const { nodes } = get()
+    const trimmed = newName.trim()
+    if (!trimmed) return false
+    if (nameExistsGlobally(nodes, trimmed, tempFolderId)) return false
+    set((s) => ({
+      nodes: s.nodes.map((n) => n.id === tempFolderId ? { ...n, isTemp: false, name: trimmed } : n),
+    }))
+    return true
+  },
+
+  cleanupTempFolders: () => {
+    set((s) => {
+      const tempIds = new Set(s.nodes.filter((n) => n.isTemp).map((n) => n.id))
+      if (tempIds.size === 0) return {}
+      return {
+        nodes: s.nodes
+          .filter((n) => !tempIds.has(n.id))
+          .map((n) => tempIds.has(n.parentId) ? { ...n, parentId: null } : n),
+      }
+    })
   },
 }))
