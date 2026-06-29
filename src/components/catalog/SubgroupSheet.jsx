@@ -5,7 +5,9 @@ import { useAppStore } from '../../store/useAppStore'
 // SPEC_MutareCrossFolder §3.5 — bottom-sheet FĂRĂ căutare (BottomBar se
 // ascunde). Două stări vizuale în ACELAȘI sheet, fără tranziție de navigare:
 // întrebare inițială → expandare inline la „Da" cu input de nume.
-export default function SubgroupSheet({ open, onClose, onConfirmNo, onConfirmYes }) {
+// `startExpanded` sare peste întrebarea Da/Nu — folosit de Organize când
+// destinația aleasă a fost „New folder" (intenția e deja clară).
+export default function SubgroupSheet({ open, onClose, onConfirmNo, onConfirmYes, startExpanded = false }) {
   const setBottomBarHidden = useAppStore((s) => s.setBottomBarHidden)
   const [expanded, setExpanded] = useState(false)
   const [name, setName] = useState('')
@@ -14,10 +16,10 @@ export default function SubgroupSheet({ open, onClose, onConfirmNo, onConfirmYes
   useEffect(() => {
     setBottomBarHidden(open)
     if (open) {
-      setExpanded(false)
+      setExpanded(startExpanded)
       setName('')
     }
-  }, [open, setBottomBarHidden])
+  }, [open, setBottomBarHidden, startExpanded])
 
   // Asigură restaurarea BottomBar-ului la demontare
   useEffect(() => () => setBottomBarHidden(false), [setBottomBarHidden])
@@ -35,7 +37,7 @@ export default function SubgroupSheet({ open, onClose, onConfirmNo, onConfirmYes
   return (
     <BottomSheet open={open} onClose={onClose}>
       <div className="px-4 pb-6">
-        <h2 className="text-sm font-medium text-zinc-200 mb-4 text-center">New sub-group?</h2>
+        <h2 className="text-sm font-medium text-zinc-200 mb-4 text-center">New folder?</h2>
 
         {!expanded ? (
           <div className="flex gap-3">
@@ -67,7 +69,7 @@ export default function SubgroupSheet({ open, onClose, onConfirmNo, onConfirmYes
             />
             <div className="flex gap-3 mt-4">
               <button
-                onClick={() => setExpanded(false)}
+                onClick={() => (startExpanded ? onConfirmNo() : setExpanded(false))}
                 className="flex-1 h-11 rounded-xl bg-zinc-800 text-sm text-zinc-300 active:bg-zinc-700"
               >
                 Anulează

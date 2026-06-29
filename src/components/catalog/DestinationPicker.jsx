@@ -9,7 +9,7 @@ import { filterAndSort } from '../../lib/search'
 // vizibil). Alege destinația pentru folderul temporar care conține selecția
 // cross-folder; `getValidMoveDestinations(tempFolderId)` exclude automat
 // folderul temporar și descendenții lui (nodurile mutate în el).
-export default function DestinationPicker({ open, onClose, tempFolderId, onPicked }) {
+export default function DestinationPicker({ open, onClose, tempFolderId, onPicked, allRootSelection = false }) {
   const getValidMoveDestinations = useCatalogStore((s) => s.getValidMoveDestinations)
 
   const searchQuery = useAppStore((s) => s.searchQuery)
@@ -43,19 +43,21 @@ export default function DestinationPicker({ open, onClose, tempFolderId, onPicke
       <div className="pb-6">
         <h2 className="px-4 text-sm font-medium text-zinc-200 mb-2">Mută în…</h2>
         <div className="max-h-[60dvh] overflow-y-auto divide-y divide-zinc-800">
-          {/* „⌂ Rădăcină" — mereu primul, fixat sus */}
+          {/* „⌂ Rădăcină" — mereu primul, fixat sus. Când toate elementele
+              selectate erau deja la rădăcină, devine „New folder" și sare
+              peste întrebarea „New folder?" din pasul următor. */}
           <button
-            onClick={() => onPicked(null, 'Rădăcină')}
+            onClick={() => onPicked(null, allRootSelection ? 'New folder' : 'Rădăcină', allRootSelection)}
             className="w-full flex items-center gap-3 px-4 py-3.5 text-left active:bg-zinc-800"
           >
             <Home size={18} className="text-zinc-400 shrink-0" />
-            <span className="flex-1 text-sm text-zinc-100">Rădăcină</span>
+            <span className="flex-1 text-sm text-zinc-100">{allRootSelection ? 'New folder' : 'Rădăcină'}</span>
           </button>
 
           {filteredFolders.map((folder) => (
             <button
               key={folder.id}
-              onClick={() => onPicked(folder.id, folder.name)}
+              onClick={() => onPicked(folder.id, folder.name, false)}
               className="w-full flex items-center gap-3 px-4 py-3.5 text-left active:bg-zinc-800"
             >
               <Folder size={18} className="text-amber-400 shrink-0" />

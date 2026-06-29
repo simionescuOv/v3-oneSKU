@@ -1,7 +1,7 @@
-import { X, ChevronRight } from 'lucide-react'
+import { X } from 'lucide-react'
 import { useCatalogStore } from '../../store/useCatalogStore'
 
-// Bară de acțiune pentru modul selecție (Grupare / Mutare).
+// Bară de acțiune pentru modul selecție (Organize).
 // position: absolute, deasupra BottomBar-ului (NU fixed, NU sub TopBar — bottom-design).
 export default function ActionBar({ onContinue }) {
   const selectionMode = useCatalogStore((s) => s.selectionMode)
@@ -11,8 +11,7 @@ export default function ActionBar({ onContinue }) {
   if (!selectionMode) return null
 
   const count = selectedNodeIds.size
-  const minRequired = selectionMode === 'group' ? 2 : 1
-  const canContinue = count >= minRequired
+  const canContinue = count >= 1
 
   return (
     <div
@@ -27,22 +26,19 @@ export default function ActionBar({ onContinue }) {
         Anulează
       </button>
 
-      <span className="flex-1 text-center text-sm font-medium text-zinc-100">
-        {count} {count === 1 ? 'selectat' : 'selectate'}
-      </span>
+      <span className="flex-1" />
 
       <button
         onClick={onContinue}
         disabled={!canContinue}
         className={[
-          'shrink-0 flex items-center gap-1.5 px-4 h-10 rounded-xl text-sm font-medium',
+          'shrink-0 flex items-center px-4 h-10 rounded-xl text-sm font-medium',
           canContinue
             ? 'bg-blue-600 text-white active:bg-blue-700'
             : 'bg-zinc-700 text-zinc-500',
         ].join(' ')}
       >
-        {selectionMode === 'move' && `Mută (${count})`}
-        <ChevronRight size={20} />
+        {`Organize  <  ${count}  >`}
       </button>
     </div>
   )

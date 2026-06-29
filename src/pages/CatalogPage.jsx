@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { useNavigate as useRouterNavigate } from 'react-router-dom'
 import {
-  Plus, Layers, FolderInput, ChevronRight, ChevronLeft, ChevronDown, Folder, Tag,
-  Settings, UnfoldVertical, FoldVertical, Check,
+  Plus, FolderInput, ChevronRight, ChevronLeft, ChevronDown, Folder, Tag,
+  UnfoldVertical, FoldVertical, Check,
 } from 'lucide-react'
 import { useCatalogStore } from '../store/useCatalogStore'
 import { useAppStore } from '../store/useAppStore'
@@ -11,7 +11,6 @@ import { usePicker } from '../hooks/usePicker'
 import NodeCard from '../components/catalog/NodeCard'
 import BottomSheet from '../components/catalog/BottomSheet'
 import ActionBar from '../components/catalog/ActionBar'
-import GroupNameSheet from '../components/catalog/GroupNameSheet'
 import DestinationPicker from '../components/catalog/DestinationPicker'
 import SubgroupSheet from '../components/catalog/SubgroupSheet'
 
@@ -205,14 +204,16 @@ export default function CatalogPage() {
   const closeCatalogMenu = useAppStore((s) => s.closeCatalogMenu)
 
   const [toast, setToast] = useState(null)
-  const [configOpen, setConfigOpen] = useState(false)
-  const [groupSheetOpen, setGroupSheetOpen] = useState(false)
   // Mutare cross-folder (SPEC_MutareCrossFolder §3.3): temp folder + cele
   // două sheet-uri ale fluxului (destinație → subfolder opțional).
   const [tempFolderId, setTempFolderId] = useState(null)
   const [pendingMoveCount, setPendingMoveCount] = useState(0)
   const [destinationPickerOpen, setDestinationPickerOpen] = useState(false)
   const [subgroupSheetOpen, setSubgroupSheetOpen] = useState(false)
+  // Toate elementele selectate erau la rădăcină → destinația „Rădăcină" devine
+  // „New folder" și sare peste întrebarea „New folder?" (intenția e deja clară).
+  const [allRootSelection, setAllRootSelection] = useState(false)
+  const [skipSubgroupQuestion, setSkipSubgroupQuestion] = useState(false)
   // Fold/unfold per-folder în modul Unfold (independent de selecție/căutare).
   const [collapsedFolderIds, setCollapsedFolderIds] = useState(() => new Set())
   const toastTimer = useRef(null)
@@ -222,7 +223,6 @@ export default function CatalogPage() {
   const destinationIdRef = useRef(null)
 
   const currentChildren = getChildren(currentFolderId)
-  const isRoot = currentFolderId === null
   const isSearching = searchQuery.trim().length > 0
 
   // ── Placeholder ──────────────────────────────────────────────────────────────
@@ -338,21 +338,18 @@ export default function CatalogPage() {
       : currentChildren
   }, [selectionMode, isSearching, currentChildren, searchQuery])
 
-  // ── Mutare cross-folder — pas „Mută (N)" (SPEC_MutareCrossFolder §3.3) ────────
+  // ── Organize — pas „Organize < N >" (SPEC_MutareCrossFolder §3.3) ─────────────
   const handleContinue = useCallback(() => {
-    if (selectionMode === 'group') {
-      setGroupSheetOpen(true)
-      return
-    }
-    if (selectionMode === 'move') {
-      const ids = [...selectedNodeIds]
-      const tempId = createTempFolder()
-      moveNodes(ids, tempId)
-      setTempFolderId(tempId)
-      setPendingMoveCount(ids.length)
-      setDestinationPickerOpen(true)
-    }
-  }, [selectionMode, selectedNodeIds, createTempFolder, moveNodes])
+    if (selectionMode !== 'move') return
+    const ids = [...selectedNodeIds]
+    const allRoot = ids.every((id) => nodes.find((n) => n.id === id)?.parentId === null)
+    const tempId = createTempFolder()
+    moveNodes(ids, tempId)
+    setTempFolderId(tempId)
+    setPendingMoveCount(ids.length)
+    setAllRootSelection(allRoot)
+    setDestinationPickerOpen(true)
+  }, [selectionMode, selectedNodeIds, nodes, createTempFolder, moveNodes])
 
   const finalizeMove = useCallback((updatedFolderId, subfolderName) => {
     setDestinationPickerOpen(false)
@@ -366,10 +363,11 @@ export default function CatalogPage() {
     }
   }, [pendingMoveCount, clearSelection, showToast, collapseAllExcept])
 
-  const handleDestinationPicked = useCallback((destinationId) => {
+  const handleDestinationPicked = useCallback((destinationId, _label, skipQuestion) => {
     destinationIdRef.current = destinationId
     moveNodes([tempFolderId], destinationId)
     setDestinationPickerOpen(false)
+    setSkipSubgroupQuestion(!!skipQuestion)
     setSubgroupSheetOpen(true)
   }, [tempFolderId, moveNodes])
 
@@ -387,30 +385,15 @@ export default function CatalogPage() {
     finalizeMove(tempFolderId, name.trim())
   }, [tempFolderId, promoteTempFolder, finalizeMove, showToast])
 
-  // ── Context menu — Config (Grupare / Mutare) ─────────────────────────────────
-  const handleGroup = useCallback(() => {
+  // ── Context menu — Organize ───────────────────────────────────────────────────
+  const handleOrganize = useCallback(() => {
     closeCatalogMenu()
-    setConfigOpen(false)
-    clearSearch()
-    enterSelectionMode('group')
-  }, [closeCatalogMenu, clearSearch, enterSelectionMode])
-
-  const handleMove = useCallback(() => {
-    closeCatalogMenu()
-    setConfigOpen(false)
     clearSearch()
     enterSelectionMode('move')
   }, [closeCatalogMenu, clearSearch, enterSelectionMode])
 
-  // Grupare: doar la rădăcină, cu ≥2 elemente negrupate. Mutare: nivel cu ≥1 element.
-  const groupDisabled = !isRoot || currentChildren.length < 2
-  // Mutarea e cross-folder (Unfold) — verificăm tot arborele, nu doar nivelul curent.
-  const moveDisabled = nodes.filter((n) => !n.isTemp).length < 1
-
-  const configMenuItems = [
-    { label: 'Grupare', icon: <Layers size={18} />, action: handleGroup, disabled: groupDisabled },
-    { label: 'Mutare', icon: <FolderInput size={18} />, action: handleMove, disabled: moveDisabled },
-  ]
+  // Organize e cross-folder (Unfold) — verificăm tot arborele, nu doar nivelul curent.
+  const organizeDisabled = nodes.filter((n) => !n.isTemp).length < 1
 
   const handleToggleTree = useCallback(() => {
     toggleTreeExpanded()
@@ -648,39 +631,22 @@ export default function CatalogPage() {
         </div>
       )}
 
-      {/* Context menu — Config (Grupare / Mutare) + Unfold/Fold */}
+      {/* Context menu — Organize + Unfold/Fold */}
       <BottomSheet open={catalogMenuOpen} onClose={closeCatalogMenu}>
         <div className="px-4 pb-6">
           <button
-            onClick={() => setConfigOpen((o) => !o)}
-            className="w-full flex items-center gap-3 px-3 py-3.5 rounded-xl text-sm text-zinc-200 hover:bg-zinc-800 active:bg-zinc-700"
+            onClick={organizeDisabled ? undefined : handleOrganize}
+            disabled={organizeDisabled}
+            className={[
+              'w-full flex items-center gap-3 px-3 py-3.5 rounded-xl text-sm',
+              organizeDisabled
+                ? 'text-zinc-600 cursor-not-allowed'
+                : 'text-zinc-200 hover:bg-zinc-800 active:bg-zinc-700',
+            ].join(' ')}
           >
-            <span className="text-zinc-400"><Settings size={18} /></span>
-            <span className="flex-1 text-left">Config</span>
-            <span className="text-zinc-500">
-              {configOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-            </span>
+            <span className={organizeDisabled ? 'text-zinc-600' : 'text-zinc-400'}><FolderInput size={18} /></span>
+            <span className="flex-1 text-left">Organize</span>
           </button>
-          {configOpen && (
-            <div className="pl-6">
-              {configMenuItems.map(({ label, icon, action, disabled }) => (
-                <button
-                  key={label}
-                  onClick={disabled ? undefined : action}
-                  disabled={disabled}
-                  className={[
-                    'w-full flex items-center gap-3 px-3 py-3.5 rounded-xl text-sm',
-                    disabled
-                      ? 'text-zinc-600 cursor-not-allowed'
-                      : 'text-zinc-200 hover:bg-zinc-800 active:bg-zinc-700',
-                  ].join(' ')}
-                >
-                  <span className={disabled ? 'text-zinc-600' : 'text-zinc-400'}>{icon}</span>
-                  <span className="flex-1 text-left">{label}</span>
-                </button>
-              ))}
-            </div>
-          )}
           <button
             onClick={handleToggleTree}
             className="w-full flex items-center gap-3 px-3 py-3.5 rounded-xl text-sm text-zinc-200 hover:bg-zinc-800 active:bg-zinc-700"
@@ -694,24 +660,19 @@ export default function CatalogPage() {
       </BottomSheet>
 
       {/* Sheets pasul final */}
-      <GroupNameSheet
-        open={groupSheetOpen}
-        onClose={() => setGroupSheetOpen(false)}
-        showToast={showToast}
-        suppressSuccessToast={!SHOW_ACTION_TOASTS}
-        onGrouped={collapseAllExcept}
-      />
       <DestinationPicker
         open={destinationPickerOpen}
         onClose={() => setDestinationPickerOpen(false)}
         tempFolderId={tempFolderId}
         onPicked={handleDestinationPicked}
+        allRootSelection={allRootSelection}
       />
       <SubgroupSheet
         open={subgroupSheetOpen}
         onClose={() => setSubgroupSheetOpen(false)}
         onConfirmNo={handleSubgroupNo}
         onConfirmYes={handleSubgroupYes}
+        startExpanded={skipSubgroupQuestion}
       />
     </div>
   )
