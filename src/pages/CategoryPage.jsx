@@ -73,8 +73,48 @@ export default function CategoryPage() {
     [attrs]
   )
 
-  const handleCrumbCatalog = () => { storeNavigate(null); routerNavigate('/catalog') }
-  const handleCrumbFolder = (folderId) => { storeNavigate(folderId); routerNavigate('/catalog') }
+  const ELLIPSIS_CRUMB = useMemo(() => ({ id: '__ellipsis__', name: '…' }), [])
+
+  const fullCrumbs = useMemo(() => {
+    const ancestorCrumbs = getAncestorFolders(categoryId).map((f) => ({ id: f.id, name: f.name }))
+    return [
+      { id: null, name: 'Catalog' },
+      ...ancestorCrumbs,
+      { id: categoryId, name: category?.name ?? '' },
+    ]
+  }, [getAncestorFolders, categoryId, category?.name])
+
+  const isCrumbTruncated = fullCrumbs.length > 2
+  const collapsedCrumbs = isCrumbTruncated
+    ? [fullCrumbs[0], ELLIPSIS_CRUMB, fullCrumbs[fullCrumbs.length - 1]]
+    : fullCrumbs
+
+  const [crumbsExpanded, setCrumbsExpanded] = useState(false)
+
+  const crumbClasses = (crumb, isLast) => {
+    const isRootCrumb = crumb.id === null
+    return [
+      'text-sm',
+      isRootCrumb
+        ? isLast
+          ? 'shrink-0 px-2.5 py-1 rounded-lg border border-blue-400/60 text-blue-400 font-semibold'
+          : 'shrink-0 px-2.5 py-1 rounded-lg border border-zinc-700 text-zinc-300 hover:border-zinc-500 hover:text-zinc-100'
+        : isLast
+          ? 'text-amber-400 font-semibold'
+          : 'text-zinc-400 hover:text-zinc-100',
+    ].join(' ')
+  }
+
+  const goToCrumb = (id) => {
+    setCrumbsExpanded(false)
+    if (id === null || id === categoryId) {
+      storeNavigate(null)
+      if (id === null) routerNavigate('/catalog')
+    } else {
+      storeNavigate(id)
+      routerNavigate('/catalog')
+    }
+  }
 
   const handleDelete = () => {
     deleteCategory(categoryId)
@@ -98,33 +138,69 @@ export default function CategoryPage() {
     )
   }
 
-  const ancestors = getAncestorFolders(categoryId)
-
   return (
     <div className="flex flex-col h-full">
-      {/* Header propriu — back + breadcrumb (Catalogul nu are TopBar generic) */}
-      <div className="flex-none flex items-center gap-1 px-2 py-2 border-b border-zinc-800">
+      <div className="flex-none flex items-start gap-1 px-2 py-2 border-b border-zinc-800">
         <button
-          onClick={() => routerNavigate('/catalog')}
+          onClick={() => routerNavigate('/')}
           className="shrink-0 flex items-center justify-center w-8 h-8 rounded-lg text-zinc-400 active:text-zinc-100 active:bg-zinc-800"
         >
           <ChevronLeft size={20} />
         </button>
-        <div className="flex items-center gap-1.5 min-w-0 flex-1 overflow-hidden">
-          <button onClick={handleCrumbCatalog} className="shrink-0 px-2.5 py-1 rounded-lg border border-zinc-700 text-sm text-zinc-300 active:text-zinc-100">
-            Catalog
-          </button>
-          {ancestors.map((f) => (
-            <span key={f.id} className="flex items-center gap-1.5 shrink-0">
-              <span className="text-zinc-600 text-sm">|</span>
-              <button onClick={() => handleCrumbFolder(f.id)} className="text-sm text-zinc-400 active:text-zinc-100 whitespace-nowrap">
-                {f.name}
-              </button>
-            </span>
-          ))}
-          <span className="text-zinc-600 text-sm shrink-0">|</span>
-          <span className="text-sm text-amber-400 font-semibold min-w-0 truncate">{category.name}</span>
-        </div>
+
+        {crumbsExpanded && isCrumbTruncated ? (
+          <div className="flex flex-wrap content-start items-center gap-x-1.5 gap-y-1.5 min-h-8 min-w-0 flex-1">
+            {fullCrumbs.map((crumb, i, arr) => {
+              const isLast = i === arr.length - 1
+              return (
+                <span key={crumb.id ?? `full-${i}`} className="flex items-center gap-1.5">
+                  {i > 0 && <span className="text-zinc-600 text-sm">|</span>}
+                  {isLast ? (
+                    <span className={crumbClasses(crumb, true)}>{crumb.name}</span>
+                  ) : (
+                    <button onClick={() => goToCrumb(crumb.id)} className={crumbClasses(crumb, false)}>
+                      {crumb.name}
+                    </button>
+                  )}
+                </span>
+              )
+            })}
+          </div>
+        ) : (
+          <div className="flex items-center gap-1.5 min-h-8 min-w-0 flex-1 overflow-hidden">
+            {collapsedCrumbs.map((crumb, i, arr) => {
+              const isLast = i === arr.length - 1
+              const isEllipsis = crumb === ELLIPSIS_CRUMB
+              return (
+                <span
+                  key={crumb.id ?? (isEllipsis ? 'ellipsis' : `c-${i}`)}
+                  className={['flex items-center gap-1.5', isLast ? 'min-w-0 flex-1' : 'shrink-0'].join(' ')}
+                >
+                  {i > 0 && <span className="text-zinc-600 text-sm shrink-0">|</span>}
+                  {isEllipsis ? (
+                    <button
+                      onClick={() => setCrumbsExpanded(true)}
+                      className="shrink-0 px-1.5 rounded text-sm text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800"
+                    >
+                      …
+                    </button>
+                  ) : isLast ? (
+                    <span className={[crumbClasses(crumb, true), 'min-w-0 truncate'].join(' ')}>
+                      {crumb.name}
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => goToCrumb(crumb.id)}
+                      className={[crumbClasses(crumb, false), 'whitespace-nowrap'].join(' ')}
+                    >
+                      {crumb.name}
+                    </button>
+                  )}
+                </span>
+              )
+            })}
+          </div>
+        )}
       </div>
 
       {/* Rezumat */}
