@@ -37,10 +37,10 @@ export const useCatalogStore = create((set, get) => ({
   selectionMode: null,          // null | 'group' | 'move'
   selectedNodeIds: new Set(),   // Set<id>
 
-  // SPEC_MutareCrossFolder §3.1: „Mutare" pornește mereu în Unfold (selecție
-  // cross-folder); „Grupare" rămâne la nivelul curent (rădăcină).
+  // „Mutare" și „Grupare" pornesc la nivelul curent (fold); utilizatorul poate
+  // activa manual Unfold dacă vrea să aleagă elemente din tot catalogul.
   enterSelectionMode: (mode) =>
-    set({ selectionMode: mode, selectedNodeIds: new Set(), treeExpanded: mode === 'move' }),
+    set({ selectionMode: mode, selectedNodeIds: new Set() }),
 
   toggleNodeSelection: (id) =>
     set((s) => {
