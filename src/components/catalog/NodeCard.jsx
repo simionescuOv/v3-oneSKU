@@ -1,6 +1,6 @@
 import { Folder, Tag, ChevronRight, Check } from 'lucide-react'
 
-export default function NodeCard({ node, onTap, selectable = false, selected = false }) {
+export default function NodeCard({ node, onTap, selectable = false, selected = false, productCount }) {
   const isFolder = node.type === 'folder'
 
   return (
@@ -29,7 +29,7 @@ export default function NodeCard({ node, onTap, selectable = false, selected = f
       {isFolder ? (
         !selectable && <ChevronRight size={16} className="text-zinc-600 shrink-0" />
       ) : (
-        <span className="text-xs text-zinc-500 shrink-0">{node.products ?? 0} produse</span>
+        <span className="text-xs text-zinc-500 shrink-0">{productCount ?? 0} produse</span>
       )}
     </button>
   )

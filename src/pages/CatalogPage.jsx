@@ -56,7 +56,7 @@ function sortTreeFolders(group, orderOf) {
   group.children.forEach((child) => sortTreeFolders(child, orderOf))
 }
 
-function SearchGroup({ group, depth, onTap }) {
+function SearchGroup({ group, depth, onTap, productCounts }) {
   const indent = 16 + depth * 16
   return (
     <>
@@ -90,11 +90,11 @@ function SearchGroup({ group, depth, onTap }) {
         >
           <Tag size={18} className="text-blue-400 shrink-0" />
           <span className="flex-1 text-sm text-zinc-100 truncate">{cat.name}</span>
-          <span className="text-xs text-zinc-500 shrink-0">{cat.products ?? 0} produse</span>
+          <span className="text-xs text-zinc-500 shrink-0">{productCounts?.[cat.id] ?? 0} produse</span>
         </button>
       ))}
       {group.children.map((child) => (
-        <SearchGroup key={child.node.id} group={child} depth={depth + 1} onTap={onTap} />
+        <SearchGroup key={child.node.id} group={child} depth={depth + 1} onTap={onTap} productCounts={productCounts} />
       ))}
     </>
   )
@@ -109,7 +109,7 @@ const EMPTY_SET = new Set()
 // folderul) au target-uri de tap separate, ca să nu se interfereze.
 // `visibleIds`, dacă e setat (căutare activă), restrânge nodurile afișate la
 // rezultate + lanțul lor de foldere-părinte (foldarea e ignorată în acest caz).
-function FullTree({ parentId, depth, getChildren, selectable, selectedIds, onToggle, collapsedIds, onToggleFold, visibleIds, currentFolderId }) {
+function FullTree({ parentId, depth, getChildren, selectable, selectedIds, onToggle, collapsedIds, onToggleFold, visibleIds, currentFolderId, productCounts }) {
   let children = getChildren(parentId)
   if (visibleIds) children = children.filter((n) => visibleIds.has(n.id))
   return children.map((node) => {
@@ -151,7 +151,7 @@ function FullTree({ parentId, depth, getChildren, selectable, selectedIds, onTog
               {node.name}
             </span>
             {node.type === 'category' && (
-              <span className="text-xs text-zinc-500 shrink-0">{node.products ?? 0} produse</span>
+              <span className="text-xs text-zinc-500 shrink-0">{productCounts?.[node.id] ?? 0} produse</span>
             )}
           </div>
         </div>
@@ -167,6 +167,7 @@ function FullTree({ parentId, depth, getChildren, selectable, selectedIds, onTog
             onToggleFold={onToggleFold}
             visibleIds={visibleIds}
             currentFolderId={currentFolderId}
+            productCounts={productCounts}
           />
         )}
       </div>
@@ -176,6 +177,7 @@ function FullTree({ parentId, depth, getChildren, selectable, selectedIds, onTog
 
 export default function CatalogPage() {
   const nodes = useCatalogStore((s) => s.nodes)
+  const products = useCatalogStore((s) => s.products)
   const currentFolderId = useCatalogStore((s) => s.currentFolderId)
   const navigate = useCatalogStore((s) => s.navigate)
   const navigateUp = useCatalogStore((s) => s.navigateUp)
@@ -225,6 +227,15 @@ export default function CatalogPage() {
 
   const currentChildren = getChildren(currentFolderId)
   const isSearching = searchQuery.trim().length > 0
+
+  const productCounts = useMemo(() => {
+    const counts = {}
+    for (const p of products) {
+      if (p.deletedAt) continue
+      counts[p.categoryId] = (counts[p.categoryId] || 0) + 1
+    }
+    return counts
+  }, [products])
 
   // ── Placeholder ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -554,6 +565,7 @@ export default function CatalogPage() {
             onToggleFold={toggleFold}
             visibleIds={searchVisibleIds}
             currentFolderId={currentFolderId}
+            productCounts={productCounts}
           />
           {isSearching && searchVisibleIds?.size === 0 && (
             <div className="px-4 py-8 text-center text-sm text-zinc-500">
@@ -573,6 +585,7 @@ export default function CatalogPage() {
               selectable
               selected={selectedNodeIds.has(node.id)}
               onTap={(n) => toggleNodeSelection(n.id)}
+              productCount={productCounts[node.id]}
             />
           ))}
           {selectionItems.length === 0 && (
@@ -583,7 +596,7 @@ export default function CatalogPage() {
         </div>
       ) : isSearching ? (
         <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-zinc-800">
-          <SearchGroup group={searchTree} depth={0} onTap={handleTap} />
+          <SearchGroup group={searchTree} depth={0} onTap={handleTap} productCounts={productCounts} />
           {showCreate && (
             <button
               onClick={handleCreateFromSearch}
@@ -604,7 +617,7 @@ export default function CatalogPage() {
       ) : (
         <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-zinc-800">
           {currentChildren.map((node) => (
-            <NodeCard key={node.id} node={node} onTap={handleTap} />
+            <NodeCard key={node.id} node={node} onTap={handleTap} productCount={productCounts[node.id]} />
           ))}
         </div>
       )}
