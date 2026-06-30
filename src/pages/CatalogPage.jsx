@@ -8,7 +8,7 @@ import { useCatalogStore } from '../store/useCatalogStore'
 import { useAppStore } from '../store/useAppStore'
 import { filterAndSort, normalize } from '../lib/search'
 import { usePicker } from '../hooks/usePicker'
-import NodeCard from '../components/catalog/NodeCard'
+import NodeCard, { NodeCount } from '../components/catalog/NodeCard'
 import BottomSheet from '../components/catalog/BottomSheet'
 import ActionBar from '../components/catalog/ActionBar'
 import DestinationPicker from '../components/catalog/DestinationPicker'
@@ -82,16 +82,13 @@ function SearchGroup({ group, depth, onTap, productCounts }) {
         )
       )}
       {group.categories.map((cat) => (
-        <button
+        <NodeCard
           key={cat.id}
-          onClick={() => onTap(cat)}
-          className="w-full flex items-center gap-3 py-3.5 text-left active:bg-zinc-900"
-          style={{ paddingLeft: indent + (group.node ? 16 : 0), paddingRight: 16 }}
-        >
-          <Tag size={18} className="text-blue-400 shrink-0" />
-          <span className="flex-1 text-sm text-zinc-100 truncate">{cat.name}</span>
-          <span className="text-sm font-semibold text-zinc-400 shrink-0">{productCounts?.[cat.id] ?? 0}</span>
-        </button>
+          node={cat}
+          onTap={onTap}
+          productCount={productCounts?.[cat.id]}
+          indent={indent + (group.node ? 16 : 0)}
+        />
       ))}
       {group.children.map((child) => (
         <SearchGroup key={child.node.id} group={child} depth={depth + 1} onTap={onTap} productCounts={productCounts} />
@@ -151,7 +148,7 @@ function FullTree({ parentId, depth, getChildren, selectable, selectedIds, onTog
               {node.name}
             </span>
             {node.type === 'category' && (
-              <span className="text-sm font-semibold text-zinc-400 shrink-0">{productCounts?.[node.id] ?? 0}</span>
+              <NodeCount value={productCounts?.[node.id]} />
             )}
           </div>
         </div>

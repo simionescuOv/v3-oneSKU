@@ -1,15 +1,21 @@
 import { Folder, Tag, ChevronRight, Check } from 'lucide-react'
 
-export default function NodeCard({ node, onTap, selectable = false, selected = false, productCount }) {
+export function NodeCount({ value }) {
+  return <span className="text-sm font-semibold text-zinc-400 shrink-0">{value ?? 0}</span>
+}
+
+export default function NodeCard({ node, onTap, selectable = false, selected = false, productCount, indent }) {
   const isFolder = node.type === 'folder'
 
   return (
     <button
       onClick={() => onTap?.(node)}
       className={[
-        'w-full flex items-center gap-3 px-4 py-3.5 text-left active:bg-zinc-900',
+        'w-full flex items-center gap-3 py-3.5 text-left active:bg-zinc-900',
+        indent === undefined ? 'px-4' : '',
         selectable && selected ? 'border-l-2 border-blue-500 bg-zinc-900/60' : '',
       ].join(' ')}
+      style={indent !== undefined ? { paddingLeft: indent, paddingRight: 16 } : undefined}
     >
       {selectable && (
         <span
@@ -29,7 +35,7 @@ export default function NodeCard({ node, onTap, selectable = false, selected = f
       {isFolder ? (
         !selectable && <ChevronRight size={16} className="text-zinc-600 shrink-0" />
       ) : (
-        <span className="text-sm font-semibold text-zinc-400 shrink-0">{productCount ?? 0}</span>
+        <NodeCount value={productCount} />
       )}
     </button>
   )
