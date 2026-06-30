@@ -90,7 +90,7 @@ function SearchGroup({ group, depth, onTap, productCounts }) {
         >
           <Tag size={18} className="text-blue-400 shrink-0" />
           <span className="flex-1 text-sm text-zinc-100 truncate">{cat.name}</span>
-          <span className="text-xs text-zinc-500 shrink-0">{productCounts?.[cat.id] ?? 0} produse</span>
+          <span className="text-sm font-semibold text-zinc-400 shrink-0">{productCounts?.[cat.id] ?? 0}</span>
         </button>
       ))}
       {group.children.map((child) => (
@@ -151,7 +151,7 @@ function FullTree({ parentId, depth, getChildren, selectable, selectedIds, onTog
               {node.name}
             </span>
             {node.type === 'category' && (
-              <span className="text-xs text-zinc-500 shrink-0">{productCounts?.[node.id] ?? 0} produse</span>
+              <span className="text-sm font-semibold text-zinc-400 shrink-0">{productCounts?.[node.id] ?? 0}</span>
             )}
           </div>
         </div>
